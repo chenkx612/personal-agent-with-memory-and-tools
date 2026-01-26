@@ -1,5 +1,5 @@
 import uuid
-from .agent import get_agent_executor
+from src.agent import get_agent_executor
 
 def main():
     print("Initializing Personal Agent...")

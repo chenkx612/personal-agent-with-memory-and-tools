@@ -71,7 +71,7 @@ When answering, use the information from memory if relevant.
         model=llm,
         tools=tools,
         checkpointer=checkpointer,
-        state_modifier=prompt_modifier
+        prompt=prompt_modifier
     )
 
     return agent_executor
