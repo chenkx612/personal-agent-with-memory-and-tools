@@ -69,46 +69,68 @@ if prompt := st.chat_input("What can I do for you?"):
 
     # Process with agent
     with st.chat_message("assistant"):
+        # Create status container for internal steps (thoughts, tool calls)
+        status = st.status("Thinking...", expanded=True)
+        # Create placeholder for final response
         message_placeholder = st.empty()
         full_response = ""
         
-        # We use a container to show tool executions if we want
-        # For now, let's just stream the final response or updates
-        
+        # Determine start index for new messages
+        # 'messages' variable contains history loaded before this run
+        start_idx = len(messages)
+        processed_idx = start_idx
+
         # Run the agent stream
-        # stream_mode="values" returns the full list of messages at each step
-        # This is tricky for streaming tokens.
-        # "updates" mode might be better if we want to see what changed.
-        # But "values" is safer to get the whole state.
+        events = agent.stream(
+            {"messages": [("user", prompt)]},
+            config,
+            stream_mode="values"
+        )
         
-        # Let's try to just wait for the final response for v1, 
-        # or use a spinner.
-        with st.spinner("Thinking..."):
-            events = agent.stream(
-                {"messages": [("user", prompt)]},
-                config,
-                stream_mode="values"
-            )
-            
-            last_msg = None
-            for event in events:
-                if "messages" in event:
-                    messages = event["messages"]
-                    if messages:
-                        last_msg = messages[-1]
+        for event in events:
+            if "messages" in event:
+                current_messages = event["messages"]
+                
+                # Process only new messages
+                if len(current_messages) > processed_idx:
+                    for i in range(processed_idx, len(current_messages)):
+                        msg = current_messages[i]
                         
-                        # If it's an AI message, update the placeholder
-                        if isinstance(last_msg, AIMessage) and last_msg.content:
-                            full_response = last_msg.content
-                            message_placeholder.markdown(full_response)
+                        # Skip the user prompt that started this turn
+                        if isinstance(msg, HumanMessage) and msg.content == prompt:
+                            continue
+                            
+                        # Visualize AI Tool Calls
+                        if isinstance(msg, AIMessage) and msg.tool_calls:
+                            status.write("🛠️ **Calling Tools**")
+                            for tool_call in msg.tool_calls:
+                                status.text(f"Tool: {tool_call['name']}")
+                                status.json(tool_call['args'])
                         
-                        # If it's a Tool execution, we could show it, but it might clutter
-                        # The stream yields state *after* the step.
-                        
-            # Ensure final state is captured
-            if not full_response and last_msg and isinstance(last_msg, AIMessage):
-                full_response = last_msg.content
-                message_placeholder.markdown(full_response)
+                        # Visualize Tool Outputs
+                        elif isinstance(msg, ToolMessage):
+                            status.write(f"✅ **Tool Result ({msg.name})**")
+                            # Truncate long outputs for display
+                            content = str(msg.content)
+                            if len(content) > 500:
+                                content = content[:500] + "... (truncated)"
+                            status.code(content)
+                            
+                        # Handle AI Response (Thought or Final Answer)
+                        elif isinstance(msg, AIMessage) and msg.content:
+                            # If it has tool calls, the content is likely a thought
+                            if msg.tool_calls:
+                                status.markdown(f"**Thought:** {msg.content}")
+                            else:
+                                # Final response
+                                full_response = msg.content
+                                message_placeholder.markdown(full_response)
+                    
+                    # Update processed index
+                    processed_idx = len(current_messages)
+        
+        # Close status
+        status.update(label="Finished", state="complete", expanded=False)
                 
     # Rerun to update the history properly (though we just displayed it)
     # Actually, since we use agent state, the next run will fetch it.
