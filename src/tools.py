@@ -1,5 +1,6 @@
 import json
 import os
+import requests
 from datetime import datetime
 from typing import Optional
 from langchain_core.tools import tool
@@ -34,9 +35,42 @@ def get_weather(location: str):
     Args:
         location: The name of the city or region (e.g., "Beijing", "New York").
     """
-    # Mock implementation for demonstration
-    # In a real app, this would call a weather API
-    return f"The weather in {location} is currently sunny, 25°C."
+    try:
+        # 1. Geocoding to get latitude and longitude
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={location}&count=1&language=en&format=json"
+        geo_response = requests.get(geo_url, timeout=10)
+        
+        if geo_response.status_code != 200:
+             return f"Failed to fetch location data. Status code: {geo_response.status_code}"
+             
+        geo_data = geo_response.json()
+        
+        if not geo_data.get("results"):
+            return f"Could not find location: {location}"
+            
+        lat = geo_data["results"][0]["latitude"]
+        lon = geo_data["results"][0]["longitude"]
+        name = geo_data["results"][0]["name"]
+        country = geo_data["results"][0].get("country", "")
+        
+        # 2. Fetch Weather data
+        weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+        weather_response = requests.get(weather_url, timeout=10)
+        
+        if weather_response.status_code != 200:
+            return f"Failed to fetch weather data. Status code: {weather_response.status_code}"
+            
+        weather_data = weather_response.json()
+        
+        current = weather_data.get("current_weather", {})
+        temp = current.get("temperature")
+        wind = current.get("windspeed")
+        
+        location_str = f"{name}, {country}" if country else name
+        return f"Weather in {location_str}: {temp}°C, Wind Speed: {wind} km/h"
+        
+    except Exception as e:
+        return f"Error fetching weather for {location}: {str(e)}"
 
 @tool
 def update_user_memory(key: str, value: str):
