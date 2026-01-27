@@ -1,4 +1,6 @@
 import uuid
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import InMemoryHistory
 from src.agent import get_agent_executor
 
 def main():
@@ -12,6 +14,9 @@ def main():
     # Use a fixed thread_id for this session to maintain conversation history
     thread_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
+    
+    # Initialize PromptSession for better input handling (fixes backspace issues)
+    session = PromptSession(history=InMemoryHistory())
 
     print(f"Session ID: {thread_id}")
     print("You can start chatting. Type 'quit' or 'exit' to end.")
@@ -19,7 +24,7 @@ def main():
 
     while True:
         try:
-            user_input = input("User: ")
+            user_input = session.prompt("User: ")
             if user_input.lower() in ["quit", "exit"]:
                 break
             
@@ -54,6 +59,9 @@ def main():
                     # If stream stopped, it should be done.
                     pass
             
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting...")
+            break
         except Exception as e:
             print(f"An error occurred: {e}")
             import traceback
