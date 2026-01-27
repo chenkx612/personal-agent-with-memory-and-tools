@@ -1,6 +1,8 @@
 import uuid
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.key_binding import KeyBindings
 from src.agent import get_agent_executor
 
 def main():
@@ -18,14 +20,32 @@ def main():
     # Initialize PromptSession for better input handling (fixes backspace issues)
     session = PromptSession(history=InMemoryHistory())
 
+    # Define custom key bindings
+    bindings = KeyBindings()
+
+    @bindings.add('enter')
+    def _(event):
+        """Bind Enter to submit the buffer."""
+        event.current_buffer.validate_and_handle()
+
+    @bindings.add('escape', 'enter')
+    def _(event):
+        """Bind Meta+Enter (Option+Enter) to insert newline."""
+        event.current_buffer.insert_text('\n')
+
     print(f"Session ID: {thread_id}")
     print("You can start chatting. Type 'quit' or 'exit' to end.")
     print("-----------------------------------------------------")
 
     while True:
         try:
-            user_input = session.prompt("User: ")
-            if user_input.lower() in ["quit", "exit"]:
+            user_input = session.prompt(
+                "User: ",
+                multiline=True,
+                key_bindings=bindings,
+                bottom_toolbar=HTML(" <b>[Enter]</b> Submit  <b>[Meta+Enter]</b> Newline ")
+            )
+            if user_input.lower().strip() in ["quit", "exit"]:
                 break
             
             # Run the agent
