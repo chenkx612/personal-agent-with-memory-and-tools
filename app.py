@@ -8,9 +8,8 @@ from src.agent import get_agent_executor
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 # Page config
-st.set_page_config(page_title="Personal Agent", page_icon="🤖")
-
-st.title("🤖 Personal Agent")
+st.set_page_config(page_title="Personal Asistant", page_icon="👩")
+st.title("👩 Personal Asistant")
 
 # Initialize session state for thread_id
 if "thread_id" not in st.session_state:

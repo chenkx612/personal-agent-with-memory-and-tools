@@ -1,23 +1,20 @@
 import os
-import json
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
-from .tools import get_current_time, get_weather, update_user_memory, get_user_memory, search_memory, MEMORY_FILE
+from .tools import get_current_time, get_weather, update_user_memory, get_user_memory, search_memory
 
 # Load environment variables
 load_dotenv()
 
 def get_agent_executor():
     # Initialize the model
-    # Note: User needs to set DEEPSEEK_API_KEY in .env
     api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
         print("Warning: DEEPSEEK_API_KEY not found in environment variables.")
-        # We might fail later if actual call happens
     
     llm = ChatOpenAI(
         model="deepseek-chat",

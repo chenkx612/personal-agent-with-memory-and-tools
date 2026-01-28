@@ -2,7 +2,7 @@ import json
 import os
 import requests
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 from langchain_core.tools import tool
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
