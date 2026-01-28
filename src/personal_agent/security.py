@@ -7,8 +7,9 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 # Configuration
-MEMORY_FILE = "user_memory.json"
-ENC_FILE = "user_memory.enc"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MEMORY_FILE = os.path.join(BASE_DIR, "data", "user_memory.json")
+ENC_FILE = os.path.join(BASE_DIR, "data", "user_memory.enc")
 
 def derive_key(password: str, salt: bytes) -> bytes:
     """Derive a 32-byte URL-safe base64-encoded key from the password."""
@@ -92,11 +93,11 @@ def decrypt(enc_path, file_path):
     except Exception:
         print("Error: Decryption failed. Incorrect password or corrupted file.")
 
-if __name__ == "__main__":
+def main():
     if len(sys.argv) < 2:
         print("Usage:")
-        print("  python secure_memory.py encrypt  # Encrypt user_memory.json -> user_memory.enc")
-        print("  python secure_memory.py decrypt  # Decrypt user_memory.enc -> user_memory.json")
+        print("  python run_security.py encrypt  # Encrypt user_memory.json -> user_memory.enc")
+        print("  python run_security.py decrypt  # Decrypt user_memory.enc -> user_memory.json")
         sys.exit(1)
     
     action = sys.argv[1]
@@ -106,4 +107,7 @@ if __name__ == "__main__":
     elif action == "decrypt":
         decrypt(ENC_FILE, MEMORY_FILE)
     else:
-        print("Unknown command. Use 'encrypt' or 'decrypt'.")
+        print(f"Unknown action: {action}")
+
+if __name__ == "__main__":
+    main()

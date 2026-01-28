@@ -4,7 +4,7 @@ os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 import streamlit as st
 import uuid
-from src.agent import get_agent_executor
+from personal_agent.core import get_agent_executor
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 # Page config

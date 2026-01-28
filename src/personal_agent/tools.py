@@ -10,8 +10,8 @@ from langchain_core.documents import Document
 
 # Memory file path
 # Use absolute path relative to project root
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MEMORY_FILE = os.path.join(BASE_DIR, "user_memory.json")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MEMORY_FILE = os.path.join(BASE_DIR, "data", "user_memory.json")
 
 # Global cache for vector store
 _vectorstore_cache = None

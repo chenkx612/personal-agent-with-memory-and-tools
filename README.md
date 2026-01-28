@@ -23,7 +23,7 @@
   - **算法**: `FAISS` (Facebook AI Similarity Search)。
   - **索引**: 使用 L2 距离（欧氏距离）进行相似度计算，支持 Top-K 语义召回。
 - **存储架构**:
-  - **持久化**: `user_memory.json` (JSON 格式) 作为单一事实来源 (Source of Truth)。
+  - **持久化**: `data/user_memory.json` (JSON 格式) 作为单一事实来源 (Source of Truth)。
   - **运行时**: 每次启动或更新时，动态构建 FAISS 内存索引，保证检索的一致性。
 
 ### 3. 会话管理算法
@@ -44,32 +44,41 @@
 
 ## 项目结构
 
-- `src/`: 源代码目录
-  - `agent.py`: Agent 构建逻辑，包含 LLM 初始化与 Graph 定义。
-  - `main.py`: 主程序入口，包含 CLI 交互与会话管理。
-  - `tools.py`: 工具函数实现（RAG 逻辑、天气 API、文件操作）。
-- `tests/`: 测试目录
-- `run.py`: 启动脚本
+```
+/Users/ckx/personal/agent/
+├── data/                   # 数据目录 (user_memory.json, user_memory.enc)
+├── src/
+│   └── personal_agent/     # 源码包
+│       ├── core.py         # Agent 核心逻辑
+│       ├── tools.py        # 工具函数
+│       ├── security.py     # 安全加密模块
+│       └── interfaces/     # 交互接口
+│           ├── cli.py      # 命令行界面
+│           └── web.py      # Web 界面 (Streamlit)
+├── tests/                  # 测试目录
+├── run_cli.py              # CLI 启动脚本
+├── run_web.py              # Web 启动脚本
+├── run_security.py         # 安全管理脚本
+├── requirements.txt
+└── README.md
+```
 
 ## 数据隐私与备份
-本项目包含敏感数据文件 `user_memory.json`，该文件已被 git 忽略以保护隐私。
+本项目包含敏感数据文件 `data/user_memory.json`，该文件已被 git 忽略以保护隐私。
 
 1. **初始化配置**:
-   复制模板文件以创建初始配置：
-   ```bash
-   cp user_memory.json.template user_memory.json
-   ```
+   如果 `data/user_memory.json` 不存在，系统会自动创建或返回空。
 
 2. **加密备份**:
    为了安全地备份你的数据到远程仓库，可以使用提供的脚本进行加密：
    ```bash
-   # 加密 (生成 user_memory.enc)
-   python secure_memory.py encrypt
+   # 加密 (生成 data/user_memory.enc)
+   python run_security.py encrypt
 
-   # 解密 (恢复 user_memory.json)
-   python secure_memory.py decrypt
+   # 解密 (恢复 data/user_memory.json)
+   python run_security.py decrypt
    ```
-   加密后的 `user_memory.enc` 文件可以安全地提交到版本控制系统中。
+   加密后的 `data/user_memory.enc` 文件可以安全地提交到版本控制系统中。
 
 ## 如何运行
 
@@ -81,12 +90,21 @@
 2. 配置环境：
    确保 `.env` 文件中包含 `DEEPSEEK_API_KEY`。
 
-3. 运行代理：
+3. 运行命令行代理：
    ```bash
-   python run.py
+   python run_cli.py
    ```
 
-4. 运行测试：
+4. 运行 Web 界面：
    ```bash
-   python tests/test_setup.py
+   python run_web.py
+   # 或者
+   streamlit run run_web.py
+   ```
+
+5. 运行测试：
+   ```bash
+   # 确保安装了 pytest
+   pip install pytest
+   pytest tests/
    ```

@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 user_memory.json
 temp/
+.pytest_cache/
