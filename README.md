@@ -51,6 +51,26 @@
 - `tests/`: 测试目录
 - `run.py`: 启动脚本
 
+## 数据隐私与备份
+本项目包含敏感数据文件 `user_memory.json`，该文件已被 git 忽略以保护隐私。
+
+1. **初始化配置**:
+   复制模板文件以创建初始配置：
+   ```bash
+   cp user_memory.json.template user_memory.json
+   ```
+
+2. **加密备份**:
+   为了安全地备份你的数据到远程仓库，可以使用提供的脚本进行加密：
+   ```bash
+   # 加密 (生成 user_memory.enc)
+   python secure_memory.py encrypt
+
+   # 解密 (恢复 user_memory.json)
+   python secure_memory.py decrypt
+   ```
+   加密后的 `user_memory.enc` 文件可以安全地提交到版本控制系统中。
+
 ## 如何运行
 
 1. 安装依赖：
