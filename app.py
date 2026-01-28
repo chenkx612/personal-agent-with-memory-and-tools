@@ -8,8 +8,8 @@ from src.agent import get_agent_executor
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 # Page config
-st.set_page_config(page_title="Personal Asistant", page_icon="👩")
-st.title("👩 Personal Asistant")
+st.set_page_config(page_title="Personal Assistant", page_icon="✨")
+st.title("✨ Personal Assistant")
 
 # Initialize session state for thread_id
 if "thread_id" not in st.session_state:
@@ -55,11 +55,11 @@ for msg in messages:
     elif isinstance(msg, AIMessage):
         # Only display non-empty AI messages (skip empty tool calls if any)
         if msg.content:
-            with st.chat_message("assistant"):
+            with st.chat_message("assistant", avatar="✨"):
                 st.write(msg.content)
     elif isinstance(msg, ToolMessage):
         # Optionally display tool outputs (maybe in an expander)
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar="✨"):
             with st.expander(f"Tool: {msg.name}"):
                 st.code(msg.content)
 
@@ -70,7 +70,7 @@ if prompt := st.chat_input("What can I do for you?"):
         st.write(prompt)
 
     # Process with agent
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="✨"):
         # Create status container for internal steps (thoughts, tool calls)
         status = st.status("Thinking...", expanded=True)
         # Create placeholder for final response
