@@ -7,7 +7,7 @@
 本项目采用以下核心技术栈构建，侧重于轻量级、高效的本地化与云端混合架构：
 
 ### 1. 大语言模型 (LLM)
-- **核心模型**: `deepseek-chat` (DeepSeek V3)
+- **核心模型**: `deepseek-chat` (DeepSeek V3.2)
   - 通过 OpenAI 兼容接口调用 DeepSeek API。
   - **参数设置**: Temperature=0.7，保证回答的创造性与准确性的平衡。
 - **Agent 框架**: `LangGraph` + `LangChain`
