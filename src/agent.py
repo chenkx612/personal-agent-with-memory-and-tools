@@ -1,8 +1,7 @@
 import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
 
 from .tools import get_current_time, get_weather, update_user_memory, get_user_memory, search_memory
@@ -26,9 +25,8 @@ def get_agent_executor():
     # Define tools
     tools = [get_current_time, get_weather, update_user_memory, get_user_memory, search_memory]
 
-    # Create a system message generator
-    def prompt_modifier(state):
-        system_prompt = """你是我（用户）的专属个人秘书。
+    # Define system prompt
+    system_prompt = """你是我（用户）的专属个人秘书。
 
 你的核心性格：
 - 优雅：言谈举止得体，令人愉悦，保持专业风度。
@@ -51,18 +49,16 @@ def get_agent_executor():
 如果用户询问个人细节（例如，“我叫什么名字？”，“我喜欢什么？”），请使用 `search_memory` 查找答案。
 不要编造用户细节。如果不确定，请先查阅记忆。
 """
-        # Insert system message at the beginning
-        return [SystemMessage(content=system_prompt)] + state["messages"]
 
     # We use MemorySaver for short-term (conversation) memory within the graph execution
     checkpointer = MemorySaver()
 
     # Create the agent
-    agent_executor = create_react_agent(
+    agent_executor = create_agent(
         model=llm,
         tools=tools,
         checkpointer=checkpointer,
-        prompt=prompt_modifier
+        system_prompt=system_prompt
     )
 
     return agent_executor
