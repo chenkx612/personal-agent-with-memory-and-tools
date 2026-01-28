@@ -1,6 +1,9 @@
+import os
+# Set environment variable for HuggingFace mirror to resolve connection issues
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
 import streamlit as st
 import uuid
-import os
 from src.agent import get_agent_executor
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 

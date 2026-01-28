@@ -2,13 +2,20 @@ import json
 import os
 import requests
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from langchain_core.tools import tool
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_core.documents import Document
 
 # Memory file path
 # Use absolute path relative to project root
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MEMORY_FILE = os.path.join(BASE_DIR, "user_memory.json")
+
+# Global cache for vector store
+_vectorstore_cache = None
+_last_memory_mtime = 0
 
 def _load_memory():
     if not os.path.exists(MEMORY_FILE):
@@ -22,6 +29,67 @@ def _load_memory():
 def _save_memory(memory):
     with open(MEMORY_FILE, "w", encoding="utf-8") as f:
         json.dump(memory, f, ensure_ascii=False, indent=2)
+
+def _get_vectorstore():
+    global _vectorstore_cache, _last_memory_mtime
+    
+    if not os.path.exists(MEMORY_FILE):
+        return None
+        
+    current_mtime = os.path.getmtime(MEMORY_FILE)
+    
+    # If cache is valid, return it
+    if _vectorstore_cache is not None and current_mtime == _last_memory_mtime:
+        return _vectorstore_cache
+        
+    # Rebuild index
+    memory = _load_memory()
+    if not memory:
+        return None
+        
+    documents = []
+    for key, value in memory.items():
+        doc = Document(
+            page_content=f"{key}: {value}",
+            metadata={"key": key}
+        )
+        documents.append(doc)
+    
+    if not documents:
+        return None
+
+    # Use a small, fast local model
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    
+    _vectorstore_cache = FAISS.from_documents(documents, embeddings)
+    _last_memory_mtime = current_mtime
+    
+    return _vectorstore_cache
+
+@tool
+def search_memory(query: str, k: int = 3):
+    """Search the user's long-term memory for relevant information.
+    
+    Use this tool when you need to recall specific details about the user that might be stored in memory,
+    rather than guessing or asking the user again.
+    
+    Args:
+        query: The search query (e.g., "user's favorite food", "birthday").
+        k: Number of results to return (default: 3).
+    """
+    vectorstore = _get_vectorstore()
+    if not vectorstore:
+        return "Memory is empty."
+        
+    docs = vectorstore.similarity_search(query, k=k)
+    if not docs:
+        return "No relevant information found in memory."
+        
+    results = []
+    for doc in docs:
+        results.append(doc.page_content)
+        
+    return "\n".join(results)
 
 @tool
 def get_current_time():

@@ -6,3 +6,6 @@ duckduckgo-search
 prompt_toolkit
 streamlit
 requests
+faiss-cpu
+sentence-transformers
+langchain-community

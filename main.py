@@ -1,3 +1,7 @@
+import os
+# Set environment variable for HuggingFace mirror to resolve connection issues
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+
 import uuid
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
