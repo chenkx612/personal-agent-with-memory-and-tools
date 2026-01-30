@@ -7,7 +7,11 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
+from rich.console import Console
+from rich.markdown import Markdown
 from personal_agent.core import get_agent_executor
+
+console = Console()
 
 def main():
     print("Initializing Personal Agent...")
@@ -76,7 +80,8 @@ def main():
             if snapshot.values and "messages" in snapshot.values:
                 last_message = snapshot.values["messages"][-1]
                 if last_message.type == "ai":
-                    print(f"Agent: {last_message.content}")
+                    console.print("[bold green]Agent:[/bold green]")
+                    console.print(Markdown(last_message.content))
                 elif last_message.type == "tool":
                     # If the last thing was a tool output, the agent hasn't responded yet? 
                     # create_react_agent usually ends with an AI message.

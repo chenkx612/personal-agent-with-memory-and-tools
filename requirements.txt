@@ -4,6 +4,7 @@ langchain-openai
 python-dotenv
 duckduckgo-search
 prompt_toolkit
+rich
 streamlit
 requests
 faiss-cpu
