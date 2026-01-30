@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 from langchain_core.tools import tool
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 
 # Memory file path
