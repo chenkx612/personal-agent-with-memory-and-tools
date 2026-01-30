@@ -51,68 +51,72 @@ def stream_agent_response(agent, user_input: str, config: dict):
     pending_tool_calls = {}  # index -> {id, name, args}
     printed_tool_calls = set()  # Track by index
 
-    console.print("[bold blue]Agent:[/bold blue] ", end="")
+    console.print("[bold blue]Agent:[/bold blue]")
 
-    for event in agent.stream(
-        {"messages": [("user", user_input)]},
-        config,
-        stream_mode="messages"
-    ):
-        msg, metadata = event
+    # Use Live for real-time markdown rendering
+    with Live(Markdown(""), console=console, refresh_per_second=10, vertical_overflow="visible") as live:
+        for event in agent.stream(
+            {"messages": [("user", user_input)]},
+            config,
+            stream_mode="messages"
+        ):
+            msg, metadata = event
 
-        # Handle AI message chunks (streaming text)
-        if isinstance(msg, AIMessageChunk):
-            # Stream content tokens
-            if msg.content:
-                print(msg.content, end="", flush=True)
-                current_content += msg.content
+            # Handle AI message chunks (streaming text)
+            if isinstance(msg, AIMessageChunk):
+                # Stream content tokens
+                if msg.content:
+                    current_content += msg.content
+                    live.update(Markdown(current_content))
 
-            # Handle tool calls - use index as the key
-            if msg.tool_call_chunks:
-                for chunk in msg.tool_call_chunks:
-                    idx = chunk.get("index", 0)
+                # Handle tool calls - use index as the key
+                if msg.tool_call_chunks:
+                    for chunk in msg.tool_call_chunks:
+                        idx = chunk.get("index", 0)
 
-                    if idx not in pending_tool_calls:
-                        pending_tool_calls[idx] = {
-                            "id": chunk.get("id"),
-                            "name": chunk.get("name") or "",
-                            "args": chunk.get("args") or ""
-                        }
-                    else:
-                        # Update id if provided
-                        if chunk.get("id"):
-                            pending_tool_calls[idx]["id"] = chunk["id"]
-                        # Update name if provided
-                        if chunk.get("name"):
-                            pending_tool_calls[idx]["name"] = chunk["name"]
-                        # Accumulate args string
-                        if chunk.get("args"):
-                            pending_tool_calls[idx]["args"] += chunk["args"]
+                        if idx not in pending_tool_calls:
+                            pending_tool_calls[idx] = {
+                                "id": chunk.get("id"),
+                                "name": chunk.get("name") or "",
+                                "args": chunk.get("args") or ""
+                            }
+                        else:
+                            # Update id if provided
+                            if chunk.get("id"):
+                                pending_tool_calls[idx]["id"] = chunk["id"]
+                            # Update name if provided
+                            if chunk.get("name"):
+                                pending_tool_calls[idx]["name"] = chunk["name"]
+                            # Accumulate args string
+                            if chunk.get("args"):
+                                pending_tool_calls[idx]["args"] += chunk["args"]
 
-        # Handle tool messages (results)
-        elif isinstance(msg, ToolMessage):
-            # Print any pending tool calls first
-            for idx, tc in pending_tool_calls.items():
-                if idx not in printed_tool_calls and tc.get("name"):
-                    print()  # Newline before tool panel
-                    try:
-                        args = json.loads(tc["args"]) if tc["args"] else {}
-                    except json.JSONDecodeError:
-                        args = {"raw": tc["args"]}
-                    console.print(format_tool_call({"name": tc["name"], "args": args}))
-                    printed_tool_calls.add(idx)
+            # Handle tool messages (results)
+            elif isinstance(msg, ToolMessage):
+                # Stop live update temporarily to print tool info
+                live.stop()
 
-            # Print tool result
-            tool_name = msg.name or "unknown"
-            console.print(format_tool_result(tool_name, str(msg.content)))
-            # Reset for potential next round of tool calls
-            pending_tool_calls.clear()
-            printed_tool_calls.clear()
-            console.print("[bold blue]Agent:[/bold blue] ", end="")
+                # Print any pending tool calls first
+                for idx, tc in pending_tool_calls.items():
+                    if idx not in printed_tool_calls and tc.get("name"):
+                        try:
+                            args = json.loads(tc["args"]) if tc["args"] else {}
+                        except json.JSONDecodeError:
+                            args = {"raw": tc["args"]}
+                        console.print(format_tool_call({"name": tc["name"], "args": args}))
+                        printed_tool_calls.add(idx)
 
-    # Final newline
-    if current_content:
-        print()
+                # Print tool result
+                tool_name = msg.name or "unknown"
+                console.print(format_tool_result(tool_name, str(msg.content)))
+                # Reset for potential next round of tool calls
+                pending_tool_calls.clear()
+                printed_tool_calls.clear()
+                current_content = ""
+                console.print("[bold blue]Agent:[/bold blue]")
+
+                # Restart live update for next response
+                live.start()
 
 
 def main():
