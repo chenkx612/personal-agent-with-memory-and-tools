@@ -5,3 +5,5 @@ user_memory.json
 temp/
 .pytest_cache/
 test/
+CLAUDE.md
+.claude
