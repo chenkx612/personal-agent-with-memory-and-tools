@@ -143,10 +143,19 @@ def get_weather(location: str):
 @tool
 def update_user_memory(key: str, value: str):
     """Update or add a piece of information about the user in long-term memory.
-    
+
+    格式规范：
+    - key: 使用简洁的分类标签，如"姓名"、"生日"、"职业"、"饮食偏好"、"兴趣爱好"
+    - value: 使用简洁的陈述句或列表，避免冗长解释
+    - 同类信息用同一个 key，更新时整合已有内容，避免重复 key
+
+    示例：
+    - 好：key="饮食偏好", value="不吃香菜；喜欢辣；偏好清淡"
+    - 差：key="用户不喜欢吃香菜", value="用户在2024年1月告诉我..."
+
     Args:
-        key: The category or key of the information (e.g., "name", "preference", "hobby").
-        value: The detailed information to store.
+        key: The category or key of the information.
+        value: The information to store.
     """
     memory = _load_memory()
     memory[key] = value

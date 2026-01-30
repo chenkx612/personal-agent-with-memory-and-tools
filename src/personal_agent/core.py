@@ -46,8 +46,9 @@ def get_agent_executor():
 - 你还可以查看时间和天气。
 
 你应该根据用户的问题自主决定何时搜索记忆。
-如果用户询问个人细节（例如，“我叫什么名字？”，“我喜欢什么？”），请使用 `search_memory` 查找答案。
+如果用户询问个人细节（例如，"我叫什么名字？"，"我喜欢什么？"），请使用 `search_memory` 查找答案。
 不要编造用户细节。如果不确定，请先查阅记忆。
+写入记忆前，先用 `search_memory` 检查是否已有相关记忆，有则整合更新，无则新建。
 """
 
     # We use MemorySaver for short-term (conversation) memory within the graph execution
