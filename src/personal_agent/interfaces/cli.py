@@ -66,7 +66,15 @@ def stream_agent_response(agent, user_input: str, config: dict):
             if isinstance(msg, AIMessageChunk):
                 # Stream content tokens
                 if msg.content:
-                    current_content += msg.content
+                    # Handle both string and list content formats
+                    if isinstance(msg.content, str):
+                        current_content += msg.content
+                    elif isinstance(msg.content, list):
+                        for item in msg.content:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                current_content += item.get("text", "")
+                            elif isinstance(item, str):
+                                current_content += item
                     live.update(Markdown(current_content))
 
                 # Handle tool calls - use index as the key

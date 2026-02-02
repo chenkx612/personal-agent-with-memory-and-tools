@@ -11,15 +11,17 @@ load_dotenv()
 
 def get_agent_executor():
     # Initialize the model
-    api_key = os.getenv("DEEPSEEK_API_KEY")
+    api_key = os.getenv("API_KEY")
+    model = os.getenv("MODEL")
+    base_url = os.getenv("BASE_URL")
+
     if not api_key:
-        print("Warning: DEEPSEEK_API_KEY not found in environment variables.")
-    
+        print("Warning: API_KEY not found in environment variables.")
+
     llm = ChatOpenAI(
-        model="deepseek-chat",
+        model=model,
         api_key=api_key,
-        base_url="https://api.deepseek.com",
-        temperature=0.7
+        base_url=base_url
     )
 
     # Define tools
