@@ -9,6 +9,20 @@ from .tools import get_current_time, get_weather, update_user_memory, get_user_m
 # Load environment variables
 load_dotenv()
 
+
+def get_llm():
+    """获取 LLM 实例，用于独立调用（如记忆整理）。"""
+    api_key = os.getenv("API_KEY")
+    model = os.getenv("MODEL")
+    base_url = os.getenv("BASE_URL")
+
+    return ChatOpenAI(
+        model=model,
+        api_key=api_key,
+        base_url=base_url
+    )
+
+
 def get_agent_executor():
     # Initialize the model
     api_key = os.getenv("API_KEY")
