@@ -330,7 +330,7 @@ def main():
         event.current_buffer.insert_text('\n')
 
     console.print(f"[dim]Session ID: {thread_id}[/dim]")
-    console.print("[dim]命令: /tidy 整理记忆 | /exit 退出[/dim]")
+    console.print("[dim]命令: /tidy 整理记忆 | /clear 清空上下文 | /exit 退出[/dim]")
     console.print("[dim]─" * 50 + "[/dim]")
 
     while True:
@@ -349,6 +349,13 @@ def main():
 
             if stripped_input == "/tidy":
                 tidy_memory()
+                continue
+
+            if stripped_input == "/clear":
+                thread_id = str(uuid.uuid4())
+                config = {"configurable": {"thread_id": thread_id}}
+                console.print("[green]✓ 上下文已清空，新对话已开始[/green]")
+                console.print(f"[dim]Session ID: {thread_id}[/dim]")
                 continue
 
             if not stripped_input:
