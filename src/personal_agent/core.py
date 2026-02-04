@@ -1,48 +1,22 @@
 import os
+
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain.agents import create_agent
-from langgraph.checkpoint.memory import MemorySaver
 
-from .tools import get_current_time, get_weather, update_user_memory, get_user_memory, search_memory
+from .graph import build_agent_graph
+from .tools import (
+    get_current_time,
+    get_user_memory,
+    get_weather,
+    search_memory,
+    update_user_memory,
+)
 
 # Load environment variables
 load_dotenv()
 
-
-def get_llm():
-    """获取 LLM 实例，用于独立调用（如记忆整理）。"""
-    api_key = os.getenv("API_KEY")
-    model = os.getenv("MODEL")
-    base_url = os.getenv("BASE_URL")
-
-    return ChatOpenAI(
-        model=model,
-        api_key=api_key,
-        base_url=base_url
-    )
-
-
-def get_agent_executor():
-    # Initialize the model
-    api_key = os.getenv("API_KEY")
-    model = os.getenv("MODEL")
-    base_url = os.getenv("BASE_URL")
-
-    if not api_key:
-        print("Warning: API_KEY not found in environment variables.")
-
-    llm = ChatOpenAI(
-        model=model,
-        api_key=api_key,
-        base_url=base_url
-    )
-
-    # Define tools
-    tools = [get_current_time, get_weather, update_user_memory, get_user_memory, search_memory]
-
-    # Define system prompt
-    system_prompt = """你是我（用户）的专属个人秘书。
+# System prompt for the personal assistant
+SYSTEM_PROMPT = """你是我（用户）的专属个人秘书。
 
 你的核心性格：
 - 优雅：言谈举止得体，令人愉悦，保持专业风度。
@@ -53,7 +27,7 @@ def get_agent_executor():
 沟通与输出规范：
 1. 日常回复要简洁：在日常对话、确认指令或简单问答时，请保持言简意赅。秘书向老板汇报时不会长篇大论，切忌啰嗦。
 2. 书面交付要详尽：当用户要求撰写报告、编写代码、制定方案等正式工作成果时，请提供完整、详尽、高质量的内容。这是书面呈交的工作成果，必须严谨细致。
-3. 区分场景：请敏锐判断当前是“口头汇报”（简洁）还是“书面呈交”（详尽）。
+3. 区分场景：请敏锐判断当前是"口头汇报"（简洁）还是"书面呈交"（详尽）。
 
 关于记忆和工具的使用：
 - 你可以访问用户的长期记忆。
@@ -67,15 +41,51 @@ def get_agent_executor():
 写入记忆前，先用 `search_memory` 检查是否已有相关记忆，有则整合更新，无则新建。
 """
 
-    # We use MemorySaver for short-term (conversation) memory within the graph execution
-    checkpointer = MemorySaver()
 
-    # Create the agent
-    agent_executor = create_agent(
-        model=llm,
-        tools=tools,
-        checkpointer=checkpointer,
-        system_prompt=system_prompt
+def get_llm():
+    """Get LLM instance for standalone use (e.g., memory tidying)."""
+    api_key = os.getenv("API_KEY")
+    model = os.getenv("MODEL")
+    base_url = os.getenv("BASE_URL")
+
+    return ChatOpenAI(
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
     )
 
-    return agent_executor
+
+def get_agent_executor():
+    """Create and return the agent executor.
+
+    Returns a compiled StateGraph with:
+    - ReAct pattern (agent ↔ tools loop)
+    - Memory tools for long-term user memory
+    - MemorySaver checkpointer for conversation persistence
+    """
+    api_key = os.getenv("API_KEY")
+    model = os.getenv("MODEL")
+    base_url = os.getenv("BASE_URL")
+
+    if not api_key:
+        print("Warning: API_KEY not found in environment variables.")
+
+    llm = ChatOpenAI(
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+    )
+
+    tools = [
+        get_current_time,
+        get_weather,
+        update_user_memory,
+        get_user_memory,
+        search_memory,
+    ]
+
+    return build_agent_graph(
+        llm=llm,
+        tools=tools,
+        system_prompt=SYSTEM_PROMPT,
+    )
