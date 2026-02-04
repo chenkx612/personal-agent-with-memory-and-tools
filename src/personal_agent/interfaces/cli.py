@@ -8,7 +8,6 @@ import tempfile
 import subprocess
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 from rich.console import Console
 from rich.markdown import Markdown
@@ -338,8 +337,7 @@ def main():
             user_input = session.prompt(
                 "User: ",
                 multiline=True,
-                key_bindings=bindings,
-                bottom_toolbar=HTML(" <b>[Enter]</b> 发送  <b>[Option+Enter]</b> 换行 ")
+                key_bindings=bindings
             )
             stripped_input = user_input.strip()
 
