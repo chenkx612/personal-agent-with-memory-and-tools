@@ -53,11 +53,9 @@
 │       ├── tools.py        # 工具函数
 │       ├── security.py     # 安全加密模块
 │       └── interfaces/     # 交互接口
-│           ├── cli.py      # 命令行界面
-│           └── web.py      # Web 界面 (Streamlit)
+│           └── cli.py      # 命令行界面
 ├── tests/                  # 测试目录
 ├── run_cli.py              # CLI 启动脚本
-├── run_web.py              # Web 启动脚本
 ├── run_security.py         # 安全管理脚本
 ├── requirements.txt
 └── README.md
@@ -95,14 +93,7 @@
    python run_cli.py
    ```
 
-4. 运行 Web 界面：
-   ```bash
-   python run_web.py
-   # 或者
-   streamlit run run_web.py
-   ```
-
-5. 运行测试：
+4. 运行测试：
    ```bash
    # 确保安装了 pytest
    pip install pytest
