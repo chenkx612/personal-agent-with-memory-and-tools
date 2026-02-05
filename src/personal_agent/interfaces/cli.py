@@ -215,11 +215,15 @@ def format_tool_result(tool_name: str, result: str) -> Panel:
     return Panel(content, border_style="green", expand=False)
 
 
-def stream_agent_response(agent, user_input: str, config: dict):
-    """Stream agent response with tool calls and thinking visible."""
+def stream_agent_response(agent, user_input: str, config: dict) -> str:
+    """Stream agent response with tool calls and thinking visible.
+
+    Returns the final response content for potential copying.
+    """
 
     # Track state for streaming
     current_content = ""
+    final_content = ""  # Track the last response for /copy
     # Use index as key since id may be None in subsequent chunks
     pending_tool_calls = {}  # index -> {id, name, args}
     printed_tool_calls = set()  # Track by index
@@ -293,11 +297,45 @@ def stream_agent_response(agent, user_input: str, config: dict):
                 # Reset for potential next round of tool calls
                 pending_tool_calls.clear()
                 printed_tool_calls.clear()
+                # Save content before reset for /copy
+                if current_content:
+                    final_content = current_content
                 current_content = ""
                 console.print("[bold blue]Agent:[/bold blue]")
 
                 # Restart live update for next response
                 live.start()
+
+    # Return the last response content (current_content if no tool calls, else final_content)
+    return current_content if current_content else final_content
+
+
+def copy_to_clipboard(text: str) -> bool:
+    """Copy text to system clipboard. Returns True on success."""
+    import sys
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+        elif sys.platform == "win32":
+            subprocess.run(["clip"], input=text.encode("utf-8"), check=True)
+        else:
+            # Linux - try xclip first, then xsel
+            try:
+                subprocess.run(
+                    ["xclip", "-selection", "clipboard"],
+                    input=text.encode("utf-8"),
+                    check=True
+                )
+            except FileNotFoundError:
+                subprocess.run(
+                    ["xsel", "--clipboard", "--input"],
+                    input=text.encode("utf-8"),
+                    check=True
+                )
+        return True
+    except Exception as e:
+        console.print(f"[red]复制失败: {e}[/red]")
+        return False
 
 
 def main():
@@ -329,8 +367,10 @@ def main():
         event.current_buffer.insert_text('\n')
 
     console.print(f"[dim]Session ID: {thread_id}[/dim]")
-    console.print("[dim]命令: /tidy 整理记忆 | /clear 清空上下文 | /exit 退出[/dim]")
+    console.print("[dim]命令: /tidy 整理记忆 | /clear 清空上下文 | /copy 复制上轮输出 | /exit 退出[/dim]")
     console.print("[dim]─" * 50 + "[/dim]")
+
+    last_response = ""  # Track last agent response for /copy
 
     while True:
         try:
@@ -356,11 +396,19 @@ def main():
                 console.print(f"[dim]Session ID: {thread_id}[/dim]")
                 continue
 
+            if stripped_input == "/copy":
+                if last_response:
+                    if copy_to_clipboard(last_response):
+                        console.print("[green]✓ 已复制到剪贴板[/green]")
+                else:
+                    console.print("[yellow]没有可复制的内容[/yellow]")
+                continue
+
             if not stripped_input:
                 continue
 
             # Stream the agent response
-            stream_agent_response(agent, user_input, config)
+            last_response = stream_agent_response(agent, user_input, config)
             print()  # Extra line between exchanges
 
         except (KeyboardInterrupt, EOFError):
