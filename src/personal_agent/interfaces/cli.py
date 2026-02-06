@@ -1,4 +1,9 @@
 import os
+from dotenv import load_dotenv
+
+# 先加载 .env 文件，确保环境变量可用
+load_dotenv()
+
 # Set environment variable for HuggingFace mirror to resolve connection issues
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
