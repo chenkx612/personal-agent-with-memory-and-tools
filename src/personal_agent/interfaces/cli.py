@@ -2,6 +2,9 @@ import os
 # Set environment variable for HuggingFace mirror to resolve connection issues
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
+# 读取输出模式配置，默认为流式输出
+STREAM_OUTPUT = os.getenv("STREAM_OUTPUT", "true").lower() == "true"
+
 import uuid
 import json
 import tempfile
@@ -310,6 +313,58 @@ def stream_agent_response(agent, user_input: str, config: dict) -> str:
     return current_content if current_content else final_content
 
 
+def blocking_agent_response(agent, user_input: str, config: dict) -> str:
+    """Non-streaming agent response with tool calls visible.
+
+    Returns the final response content for potential copying.
+    """
+    console.print("[bold blue]Agent:[/bold blue]")
+
+    response = agent.invoke(
+        {"messages": [("user", user_input)]},
+        config
+    )
+
+    # 提取所有消息，显示工具调用信息
+    messages = response.get("messages", [])
+    final_content = ""
+
+    for msg in messages:
+        # 显示工具调用
+        if hasattr(msg, "tool_calls") and msg.tool_calls:
+            for tc in msg.tool_calls:
+                console.print(format_tool_call({
+                    "name": tc.get("name", "unknown"),
+                    "args": tc.get("args", {})
+                }))
+
+        # 显示工具返回结果
+        if isinstance(msg, ToolMessage):
+            tool_name = msg.name or "unknown"
+            console.print(format_tool_result(tool_name, str(msg.content)))
+
+        # 获取最终 AI 响应内容
+        if hasattr(msg, "content") and msg.content and hasattr(msg, "type") and msg.type == "ai":
+            content = msg.content
+            # 处理 content 可能是 list 的情况
+            if isinstance(content, list):
+                text_parts = []
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text_parts.append(item.get("text", ""))
+                    elif isinstance(item, str):
+                        text_parts.append(item)
+                content = "".join(text_parts)
+            if content:
+                final_content = content
+
+    # 渲染最终响应
+    if final_content:
+        console.print(Markdown(final_content))
+
+    return final_content
+
+
 def copy_to_clipboard(text: str) -> bool:
     """Copy text to system clipboard. Returns True on success."""
     import sys
@@ -366,7 +421,9 @@ def main():
         """Bind Meta+Enter (Option+Enter) to insert newline."""
         event.current_buffer.insert_text('\n')
 
+    output_mode = "流式" if STREAM_OUTPUT else "阻塞"
     console.print(f"[dim]Session ID: {thread_id}[/dim]")
+    console.print(f"[dim]输出模式: {output_mode}[/dim]")
     console.print("[dim]命令: /tidy 整理记忆 | /clear 清空上下文 | /copy 复制上轮输出 | /exit 退出[/dim]")
     console.print("[dim]─" * 50 + "[/dim]")
 
@@ -407,8 +464,11 @@ def main():
             if not stripped_input:
                 continue
 
-            # Stream the agent response
-            last_response = stream_agent_response(agent, user_input, config)
+            # 根据配置选择输出模式
+            if STREAM_OUTPUT:
+                last_response = stream_agent_response(agent, user_input, config)
+            else:
+                last_response = blocking_agent_response(agent, user_input, config)
             print()  # Extra line between exchanges
 
         except (KeyboardInterrupt, EOFError):
