@@ -1,9 +1,12 @@
 .env
 __pycache__/
 *.pyc
-user_memory.json
 temp/
 .pytest_cache/
 test/
 CLAUDE.md
 .claude
+config.yaml
+data/user_memory.json
+data/vectorstore_cache.faiss
+data/*.faiss
