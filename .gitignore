@@ -8,5 +8,3 @@ CLAUDE.md
 .claude
 config.yaml
 data/user_memory.json
-data/vectorstore_cache.faiss
-data/*.faiss
