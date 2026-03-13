@@ -438,7 +438,7 @@ def main():
         try:
             user_input = session.prompt(
                 "User: ",
-                multiline=True,
+                multiline=False,  # 使用单行模式避免 macOS 终端闪退问题
                 key_bindings=bindings
             )
             stripped_input = user_input.strip()
