@@ -2,12 +2,9 @@ langchain
 langgraph
 langchain-openai
 python-dotenv
-duckduckgo-search
 prompt_toolkit
 rich
-requests
 faiss-cpu
 sentence-transformers
 langchain-community
 langchain-huggingface
-pytest
