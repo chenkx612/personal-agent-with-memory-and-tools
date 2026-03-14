@@ -7,8 +7,6 @@ from langchain_openai import ChatOpenAI
 from .graph import build_agent_graph
 from .tools import (
     get_current_time,
-    get_user_memory,
-    get_weather,
     search_memory,
     update_user_memory,
 )
@@ -92,9 +90,7 @@ def get_agent_executor():
 
     tools = [
         get_current_time,
-        get_weather,
         update_user_memory,
-        get_user_memory,
         search_memory,
     ]
 
