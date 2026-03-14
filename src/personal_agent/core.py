@@ -9,6 +9,7 @@ from .tools import (
     get_current_time,
     search_memory,
     update_user_memory,
+    web_search,
 )
 
 # Load environment variables
@@ -92,6 +93,7 @@ def get_agent_executor():
         get_current_time,
         update_user_memory,
         search_memory,
+        web_search,
     ]
 
     return build_agent_graph(
