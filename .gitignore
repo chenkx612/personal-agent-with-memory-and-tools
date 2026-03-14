@@ -8,3 +8,4 @@ CLAUDE.md
 .claude
 config.yaml
 data/user_memory.json
+data/faiss_index/
