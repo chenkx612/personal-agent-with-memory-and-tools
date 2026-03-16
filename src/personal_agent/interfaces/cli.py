@@ -411,7 +411,9 @@ def main():
     config = {"configurable": {"thread_id": thread_id}}
 
     # Initialize PromptSession for better input handling (fixes backspace issues)
-    session = PromptSession(history=InMemoryHistory())
+    session = PromptSession(
+        history=InMemoryHistory(),
+    )
 
     # Define custom key bindings
     bindings = KeyBindings()
@@ -421,11 +423,6 @@ def main():
         """Bind Enter to submit the buffer."""
         event.current_buffer.validate_and_handle()
 
-    @bindings.add('escape', 'enter')
-    def _(event):
-        """Bind Meta+Enter (Option+Enter) to insert newline."""
-        event.current_buffer.insert_text('\n')
-
     output_mode = "流式" if STREAM_OUTPUT else "阻塞"
     console.print(f"[dim]Session ID: {thread_id}[/dim]")
     console.print(f"[dim]输出模式: {output_mode}[/dim]")
@@ -433,14 +430,27 @@ def main():
     console.print("[dim]─" * 50 + "[/dim]")
 
     last_response = ""  # Track last agent response for /copy
+    use_prompt_toolkit = True  # 标记是否使用 prompt_toolkit
 
     while True:
         try:
-            user_input = session.prompt(
-                "User: ",
-                multiline=False,  # 使用单行模式避免 macOS 终端闪退问题
-                key_bindings=bindings
-            )
+            if use_prompt_toolkit:
+                try:
+                    user_input = session.prompt(
+                        "User: ",
+                        multiline=False,  # 单行模式
+                        key_bindings=bindings,
+                        wrap_lines=False,  # 禁用自动换行，避免长行渲染崩溃
+                    )
+                except Exception as e:
+                    # prompt_toolkit 出错时，回退到标准 input()
+                    console.print(f"[yellow]警告: 输入组件出错，切换到兼容模式 ({e})[/yellow]")
+                    console.print("[dim]提示: 兼容模式下使用上下方向键浏览历史输入[/dim]")
+                    use_prompt_toolkit = False
+                    user_input = input("User: ")
+            else:
+                user_input = input("User: ")
+
             stripped_input = user_input.strip()
 
             if stripped_input == "/exit":
