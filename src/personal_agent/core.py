@@ -6,7 +6,7 @@ from langchain_openai import ChatOpenAI
 
 from .graph import build_agent_graph
 from .tools import (
-    get_current_time,
+    get_environment_context,
     search_memory,
     update_user_memory,
     web_search,
@@ -90,7 +90,7 @@ def get_agent_executor():
     llm = ChatOpenAI(**llm_kwargs)
 
     tools = [
-        get_current_time,
+        get_environment_context,
         update_user_memory,
         search_memory,
         web_search,
