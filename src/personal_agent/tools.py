@@ -295,7 +295,7 @@ def get_environment_context():
 
 
 @tool
-def update_user_memory(key: str, value: str):
+def update_user_memory(key: str, value: str, overwrite_confirmed: bool = False):
     """Update or add a stable attribute about the user in long-term memory (user profile only).
 
     仅用于存储用户的稳定属性和偏好（如姓名、生日、饮食偏好、兴趣爱好）。
@@ -306,6 +306,10 @@ def update_user_memory(key: str, value: str):
     - value: 使用简洁的陈述句或列表，避免冗长解释
     - 同类信息用同一个 key，更新时整合已有内容，避免重复 key
 
+    更新已有 key 的流程：
+    1. 首次调用（不设 overwrite_confirmed）时，若 key 已存在，会返回现有内容
+    2. 将现有内容与新信息合并后，再次调用并设 overwrite_confirmed=True
+
     示例：
     - 好：key="饮食偏好", value="不吃香菜；喜欢辣；偏好清淡"
     - 差：key="用户不喜欢吃香菜", value="用户在2024年1月告诉我..."
@@ -313,8 +317,17 @@ def update_user_memory(key: str, value: str):
     Args:
         key: The category or key of the information.
         value: The information to store.
+        overwrite_confirmed: Must be True when updating an existing key. Set this only after
+            reading the existing value and merging it with the new information.
     """
     memory = _load_memory()
+    if key in memory and not overwrite_confirmed:
+        existing = memory[key]
+        return (
+            f"⚠️ Key '{key}' already exists with content:\n{existing}\n\n"
+            f"Please merge the above with your new information, then call again with "
+            f"the merged value and overwrite_confirmed=True."
+        )
     memory[key] = value
     _save_memory(memory)
     return f"Successfully updated memory: {key} = {value}"
