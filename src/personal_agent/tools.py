@@ -152,10 +152,10 @@ def _get_vectorstore():
 
 @tool
 def search_memory(query: str, k: int = 3):
-    """Search the user's long-term memory for relevant information.
+    """Search the user's long-term memory for relevant information (user profile/preferences only).
 
-    Use this tool when you need to recall specific details about the user that might be stored in memory,
-    rather than guessing or asking the user again.
+    Use this tool when you need to recall stable attributes about the user (preferences, habits,
+    personal info). Do NOT use this to find notes or recorded content — use search_notes instead.
 
     Args:
         query: The search query (e.g., "user's favorite food", "birthday").
@@ -305,7 +305,10 @@ def _clear_faiss_index():
 
 @tool
 def update_user_memory(key: str, value: str):
-    """Update or add a piece of information about the user in long-term memory.
+    """Update or add a stable attribute about the user in long-term memory (user profile only).
+
+    仅用于存储用户的稳定属性和偏好（如姓名、生日、饮食偏好、兴趣爱好）。
+    若用户想记录具体内容、想法、事件或文章要点，请使用 add_note 工具。
 
     格式规范：
     - key: 使用简洁的分类标签，如"姓名"、"生日"、"职业"、"饮食偏好"、"兴趣爱好"
