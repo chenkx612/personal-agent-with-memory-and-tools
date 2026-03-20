@@ -10,6 +10,9 @@ from .tools import (
     search_memory,
     update_user_memory,
     web_search,
+    add_note,
+    search_notes,
+    get_note,
 )
 
 # Load environment variables
@@ -94,6 +97,9 @@ def get_agent_executor():
         update_user_memory,
         search_memory,
         web_search,
+        add_note,
+        search_notes,
+        get_note,
     ]
 
     return build_agent_graph(

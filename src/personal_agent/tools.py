@@ -1,6 +1,7 @@
 import json
 import os
 import logging
+import uuid
 import urllib.request
 import urllib.error
 from datetime import datetime
@@ -39,10 +40,17 @@ MEMORY_FILE = os.path.join(BASE_DIR, "data", "user_memory.json")
 FAISS_INDEX_DIR = os.path.join(BASE_DIR, "data", "faiss_index")
 FAISS_INDEX_MTIME_FILE = os.path.join(FAISS_INDEX_DIR, "memory_mtime.txt")
 
+NOTES_FILE = os.path.join(BASE_DIR, "data", "notes.json")
+NOTES_FAISS_DIR = os.path.join(BASE_DIR, "data", "notes_faiss_index")
+NOTES_FAISS_MTIME_FILE = os.path.join(NOTES_FAISS_DIR, "notes_mtime.txt")
+
 # Global cache for vector store and embeddings
 _vectorstore_cache = None
 _embeddings_cache = None
 _last_memory_mtime = 0
+
+_notes_vectorstore_cache = None
+_last_notes_mtime = 0
 
 def _load_memory():
     if not os.path.exists(MEMORY_FILE):
@@ -311,6 +319,149 @@ def update_user_memory(key: str, value: str):
     _save_memory(memory)
     _clear_faiss_index()  # Clear index so it will be rebuilt next time
     return f"Successfully updated memory: {key} = {value}"
+
+
+def _load_notes():
+    if not os.path.exists(NOTES_FILE):
+        return {}
+    try:
+        with open(NOTES_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_notes(notes):
+    with open(NOTES_FILE, "w", encoding="utf-8") as f:
+        json.dump(notes, f, ensure_ascii=False, indent=2)
+
+def _get_notes_vectorstore():
+    global _notes_vectorstore_cache, _last_notes_mtime
+
+    if not os.path.exists(NOTES_FILE):
+        return None
+
+    current_mtime = os.path.getmtime(NOTES_FILE)
+
+    if _notes_vectorstore_cache is not None and current_mtime == _last_notes_mtime:
+        return _notes_vectorstore_cache
+
+    # Try to load from disk
+    if (os.path.exists(NOTES_FAISS_DIR) and os.path.exists(NOTES_FAISS_MTIME_FILE)):
+        try:
+            with open(NOTES_FAISS_MTIME_FILE, "r") as f:
+                saved_mtime = float(f.read().strip())
+            if saved_mtime == current_mtime:
+                embeddings = _get_embeddings()
+                _notes_vectorstore_cache = FAISS.load_local(NOTES_FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
+                _last_notes_mtime = current_mtime
+                return _notes_vectorstore_cache
+        except Exception:
+            pass
+
+    # Rebuild from scratch
+    notes = _load_notes()
+    if not notes:
+        return None
+
+    documents = []
+    for note_id, note in notes.items():
+        doc = Document(
+            page_content=f"{note['title']}\n{note['content']}",
+            metadata={"note_id": note_id, "title": note["title"],
+                      "tags": note["tags"], "created_at": note["created_at"]}
+        )
+        documents.append(doc)
+
+    if not documents:
+        return None
+
+    embeddings = _get_embeddings()
+    _notes_vectorstore_cache = FAISS.from_documents(documents, embeddings)
+    _last_notes_mtime = current_mtime
+
+    os.makedirs(NOTES_FAISS_DIR, exist_ok=True)
+    _notes_vectorstore_cache.save_local(NOTES_FAISS_DIR)
+    with open(NOTES_FAISS_MTIME_FILE, "w") as f:
+        f.write(str(current_mtime))
+
+    return _notes_vectorstore_cache
+
+
+@tool
+def add_note(title: str, content: str, tags: str = ""):
+    """添加一条新笔记到笔记本。
+
+    当用户想要记录某件事、某个想法、某次对话要点时使用此工具。
+    笔记与用户画像（user_memory）不同：笔记是用户主动记录的内容，支持后续搜索和回顾。
+
+    Args:
+        title: 笔记标题，简洁概括内容。
+        content: 笔记正文，详细记录内容。
+        tags: 标签，逗号分隔（可选），如"论文,研究"。
+    """
+    note_id = str(uuid.uuid4())[:8]
+    notes = _load_notes()
+    notes[note_id] = {
+        "title": title,
+        "content": content,
+        "tags": tags,
+        "created_at": datetime.now().strftime("%Y-%m-%d"),
+    }
+    _save_notes(notes)
+    if os.path.exists(NOTES_FAISS_MTIME_FILE):
+        try:
+            os.remove(NOTES_FAISS_MTIME_FILE)
+        except Exception:
+            pass
+    return f"笔记已保存，id: {note_id}，标题：{title}"
+
+
+@tool
+def search_notes(query: str, k: int = 5):
+    """搜索笔记，返回相关笔记的摘要列表。
+
+    当用户想查找之前记录的笔记时使用此工具。返回摘要列表（不含全文），
+    若需要阅读完整内容，请使用 get_note 工具并传入 note_id。
+
+    Args:
+        query: 搜索关键词或描述。
+        k: 返回结果数量（默认5）。
+    """
+    vectorstore = _get_notes_vectorstore()
+    if not vectorstore:
+        return "笔记本为空。"
+
+    docs = vectorstore.similarity_search(query, k=k)
+    if not docs:
+        return "未找到相关笔记。"
+
+    lines = []
+    for doc in docs:
+        m = doc.metadata
+        preview = doc.page_content.split("\n", 1)[-1][:60]
+        lines.append(f'[{m["note_id"]}] "{m["title"]}" ({m["created_at"]}) tags: {m["tags"]} - "{preview}..."')
+    return "\n".join(lines)
+
+
+@tool
+def get_note(note_id: str):
+    """按 id 读取笔记全文。
+
+    使用 search_notes 获取 note_id 后，调用此工具读取完整笔记内容。
+
+    Args:
+        note_id: 笔记的唯一 id（8位字符串）。
+    """
+    notes = _load_notes()
+    note = notes.get(note_id)
+    if not note:
+        return f"未找到 id 为 {note_id} 的笔记。"
+    return (
+        f"标题：{note['title']}\n"
+        f"日期：{note['created_at']}\n"
+        f"标签：{note['tags']}\n"
+        f"正文：\n{note['content']}"
+    )
 
 
 @tool
