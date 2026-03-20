@@ -8,6 +8,7 @@ from .graph import build_agent_graph
 from .tools import (
     get_environment_context,
     search_memory,
+    get_memory,
     update_user_memory,
     web_search,
     add_note,
@@ -96,6 +97,7 @@ def get_agent_executor():
         get_environment_context,
         update_user_memory,
         search_memory,
+        get_memory,
         web_search,
         add_note,
         search_notes,

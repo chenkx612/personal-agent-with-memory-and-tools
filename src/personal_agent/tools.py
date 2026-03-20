@@ -169,9 +169,15 @@ def search_memory(query: str, k: int = 3):
     if not docs:
         return "No relevant information found in memory."
 
+    PREVIEW_LEN = 20
     results = []
     for doc in docs:
-        results.append(doc.page_content)
+        key = doc.metadata["key"]
+        value = doc.page_content[len(key) + 2:]  # strip "key: " prefix
+        if len(value) <= PREVIEW_LEN:
+            results.append(f"{key}: {value}")
+        else:
+            results.append(f"{key}: {value[:PREVIEW_LEN]}...  (truncated, use get_memory to read full value)")
 
     return "\n".join(results)
 
@@ -319,6 +325,25 @@ def update_user_memory(key: str, value: str):
     _save_memory(memory)
     _clear_faiss_index()  # Clear index so it will be rebuilt next time
     return f"Successfully updated memory: {key} = {value}"
+
+
+@tool
+def get_memory(keys: list[str]):
+    """Retrieve full values for one or more memory keys.
+
+    Use this after search_memory when a result is marked as truncated and you need the complete value.
+
+    Args:
+        keys: List of memory keys to retrieve (e.g., ["饮食偏好", "健康状况"]).
+    """
+    memory = _load_memory()
+    results = []
+    for key in keys:
+        if key in memory:
+            results.append(f"{key}: {memory[key]}")
+        else:
+            results.append(f"{key}: (not found)")
+    return "\n".join(results)
 
 
 def _load_notes():
