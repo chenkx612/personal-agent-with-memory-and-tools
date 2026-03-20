@@ -29,6 +29,22 @@ from personal_agent.tools import _load_memory, _save_memory
 
 console = Console()
 
+
+def normalize_llm_content(content) -> str:
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text_parts.append(item.get("text", ""))
+            elif isinstance(item, str):
+                text_parts.append(item)
+        return "".join(text_parts)
+    return str(content)
+
 TIDY_PROMPT = """你是一个记忆整理助手。请分析以下用户记忆数据，进行整理优化。
 
 当前记忆（JSON格式）：
@@ -117,17 +133,7 @@ def tidy_memory() -> bool:
 
     try:
         response = llm.invoke(prompt)
-        content = response.content
-
-        # 处理 content 可能是 list 的情况
-        if isinstance(content, list):
-            text_parts = []
-            for item in content:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    text_parts.append(item.get("text", ""))
-                elif isinstance(item, str):
-                    text_parts.append(item)
-            content = "".join(text_parts)
+        content = normalize_llm_content(response.content)
 
         # 提取 JSON
         import re
@@ -251,15 +257,7 @@ def stream_agent_response(agent, user_input: str, config: dict) -> str:
             if isinstance(msg, AIMessageChunk):
                 # Stream content tokens
                 if msg.content:
-                    # Handle both string and list content formats
-                    if isinstance(msg.content, str):
-                        current_content += msg.content
-                    elif isinstance(msg.content, list):
-                        for item in msg.content:
-                            if isinstance(item, dict) and item.get("type") == "text":
-                                current_content += item.get("text", "")
-                            elif isinstance(item, str):
-                                current_content += item
+                    current_content += normalize_llm_content(msg.content)
                     live.update(Markdown(current_content))
 
                 # Handle tool calls - use index as the key
@@ -350,16 +348,7 @@ def blocking_agent_response(agent, user_input: str, config: dict) -> str:
 
         # 获取最终 AI 响应内容
         if hasattr(msg, "content") and msg.content and hasattr(msg, "type") and msg.type == "ai":
-            content = msg.content
-            # 处理 content 可能是 list 的情况
-            if isinstance(content, list):
-                text_parts = []
-                for item in content:
-                    if isinstance(item, dict) and item.get("type") == "text":
-                        text_parts.append(item.get("text", ""))
-                    elif isinstance(item, str):
-                        text_parts.append(item)
-                content = "".join(text_parts)
+            content = normalize_llm_content(msg.content)
             if content:
                 final_content = content
 
