@@ -42,7 +42,6 @@ FAISS_INDEX_MTIME_FILE = os.path.join(FAISS_INDEX_DIR, "memory_mtime.txt")
 
 NOTES_FILE = os.path.join(BASE_DIR, "data", "notes.json")
 NOTES_FAISS_DIR = os.path.join(BASE_DIR, "data", "notes_faiss_index")
-NOTES_FAISS_MTIME_FILE = os.path.join(NOTES_FAISS_DIR, "notes_mtime.txt")
 
 # Global cache for vector store and embeddings
 _vectorstore_cache = None
@@ -50,7 +49,6 @@ _embeddings_cache = None
 _last_memory_mtime = 0
 
 _notes_vectorstore_cache = None
-_last_notes_mtime = 0
 
 def _load_memory():
     if not os.path.exists(MEMORY_FILE):
@@ -295,13 +293,6 @@ def get_environment_context():
 
     return "\n".join(lines)
 
-def _clear_faiss_index():
-    """Clear the saved FAISS index (call when memory is updated)."""
-    if os.path.exists(FAISS_INDEX_MTIME_FILE):
-        try:
-            os.remove(FAISS_INDEX_MTIME_FILE)
-        except Exception:
-            pass
 
 @tool
 def update_user_memory(key: str, value: str):
@@ -326,7 +317,6 @@ def update_user_memory(key: str, value: str):
     memory = _load_memory()
     memory[key] = value
     _save_memory(memory)
-    _clear_faiss_index()  # Clear index so it will be rebuilt next time
     return f"Successfully updated memory: {key} = {value}"
 
 
@@ -363,30 +353,22 @@ def _save_notes(notes):
         json.dump(notes, f, ensure_ascii=False, indent=2)
 
 def _get_notes_vectorstore():
-    global _notes_vectorstore_cache, _last_notes_mtime
+    """Get notes vector store: memory cache → disk → full build."""
+    global _notes_vectorstore_cache
 
-    if not os.path.exists(NOTES_FILE):
-        return None
-
-    current_mtime = os.path.getmtime(NOTES_FILE)
-
-    if _notes_vectorstore_cache is not None and current_mtime == _last_notes_mtime:
+    if _notes_vectorstore_cache is not None:
         return _notes_vectorstore_cache
 
     # Try to load from disk
-    if (os.path.exists(NOTES_FAISS_DIR) and os.path.exists(NOTES_FAISS_MTIME_FILE)):
+    if os.path.exists(NOTES_FAISS_DIR):
         try:
-            with open(NOTES_FAISS_MTIME_FILE, "r") as f:
-                saved_mtime = float(f.read().strip())
-            if saved_mtime == current_mtime:
-                embeddings = _get_embeddings()
-                _notes_vectorstore_cache = FAISS.load_local(NOTES_FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
-                _last_notes_mtime = current_mtime
-                return _notes_vectorstore_cache
+            embeddings = _get_embeddings()
+            _notes_vectorstore_cache = FAISS.load_local(NOTES_FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
+            return _notes_vectorstore_cache
         except Exception:
             pass
 
-    # Rebuild from scratch
+    # Full build as fallback (first run or index missing)
     notes = _load_notes()
     if not notes:
         return None
@@ -405,12 +387,9 @@ def _get_notes_vectorstore():
 
     embeddings = _get_embeddings()
     _notes_vectorstore_cache = FAISS.from_documents(documents, embeddings)
-    _last_notes_mtime = current_mtime
 
     os.makedirs(NOTES_FAISS_DIR, exist_ok=True)
     _notes_vectorstore_cache.save_local(NOTES_FAISS_DIR)
-    with open(NOTES_FAISS_MTIME_FILE, "w") as f:
-        f.write(str(current_mtime))
 
     return _notes_vectorstore_cache
 
@@ -428,19 +407,34 @@ def add_note(title: str, content: str, tags: str = ""):
         tags: 标签，逗号分隔（可选），如"论文,研究"。
     """
     note_id = str(uuid.uuid4())[:8]
+    created_at = datetime.now().strftime("%Y-%m-%d")
     notes = _load_notes()
     notes[note_id] = {
         "title": title,
         "content": content,
         "tags": tags,
-        "created_at": datetime.now().strftime("%Y-%m-%d"),
+        "created_at": created_at,
     }
     _save_notes(notes)
-    if os.path.exists(NOTES_FAISS_MTIME_FILE):
-        try:
-            os.remove(NOTES_FAISS_MTIME_FILE)
-        except Exception:
-            pass
+
+    # Incrementally add to FAISS index
+    doc = Document(
+        page_content=f"{title}\n{content}",
+        metadata={"note_id": note_id, "title": title,
+                  "tags": tags, "created_at": created_at}
+    )
+    vectorstore = _get_notes_vectorstore()
+    if vectorstore is not None:
+        vectorstore.add_documents([doc])
+    else:
+        global _notes_vectorstore_cache
+        embeddings = _get_embeddings()
+        _notes_vectorstore_cache = FAISS.from_documents([doc], embeddings)
+        vectorstore = _notes_vectorstore_cache
+
+    os.makedirs(NOTES_FAISS_DIR, exist_ok=True)
+    vectorstore.save_local(NOTES_FAISS_DIR)
+
     return f"笔记已保存，id: {note_id}，标题：{title}"
 
 
