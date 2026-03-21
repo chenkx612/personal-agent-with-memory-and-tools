@@ -1,6 +1,6 @@
 """Agent state definition for LangGraph."""
 
-from typing import Annotated, Sequence
+from typing import Annotated, Sequence, Optional
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
@@ -16,7 +16,7 @@ class AgentState(TypedDict):
     Future extension points:
     - Add `context` field for cross-node shared context
     - Add `current_agent` field for multi-agent routing
-    - Add `interrupt_data` field for human-in-the-loop support
     """
 
     messages: Annotated[Sequence[BaseMessage], add_messages]
+    pending_tool_approval: Optional[dict]  # 待用户确认的工具调用: {tool_call_id, name, args, original_message}

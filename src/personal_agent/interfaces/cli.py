@@ -22,10 +22,12 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 from rich.live import Live
-from rich.prompt import Prompt
+from rich.prompt import Prompt, Confirm
 from langchain_core.messages import AIMessageChunk, ToolMessage
 from personal_agent.core import get_agent_executor, get_llm
-from personal_agent.tools import _load_memory, _save_memory, _load_notes
+from personal_agent.tools import _load_memory, _save_memory, _load_notes, _save_notes, _get_notes_vectorstore
+from langchain_core.documents import Document
+import datetime
 
 console = Console()
 
@@ -44,6 +46,7 @@ def normalize_llm_content(content) -> str:
                 text_parts.append(item)
         return "".join(text_parts)
     return str(content)
+
 
 TIDY_PROMPT = """你是一个记忆整理助手。请分析以下用户记忆数据，进行整理优化。
 
@@ -269,6 +272,325 @@ def show_note_detail(note_id: str, note: dict):
     Prompt.ask("[dim]按 Enter 返回列表[/dim]")
 
 
+def edit_note_content(title: str, content: str, tags: str) -> tuple[str, str, str] | None:
+    """在系统编辑器中编辑笔记内容，返回编辑后的 (title, content, tags)，失败或取消返回 None。"""
+    editor = os.environ.get("EDITOR", "vim")
+
+    # 准备编辑内容
+    edit_content = f"""# 标题 (第一行是标题，后面的 # 开头的行是注释)
+{title}
+
+# 标签 (多个标签用逗号分隔)
+{tags}
+
+# 内容 (从这里开始是笔记正文)
+{content}
+"""
+
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".md",
+        delete=False,
+        encoding="utf-8"
+    ) as f:
+        f.write(edit_content)
+        temp_path = f.name
+
+    try:
+        # 打开编辑器
+        console.print(f"[dim]使用 {editor} 编辑... (保存退出后生效)[/dim]")
+        result = subprocess.run([editor, temp_path])
+
+        if result.returncode != 0:
+            console.print(f"[red]编辑器退出异常 (code {result.returncode})[/red]")
+            return None
+
+        # 读取编辑后的内容
+        with open(temp_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        # 解析编辑后的内容
+        new_title = ""
+        new_tags = ""
+        new_content_parts = []
+        state = "title"  # title -> tags -> content
+
+        for line in lines:
+            stripped = line.rstrip("\n")
+            if state == "title":
+                if stripped.startswith("#"):
+                    continue
+                new_title = stripped
+                state = "tags"
+            elif state == "tags":
+                if stripped.startswith("#"):
+                    continue
+                new_tags = stripped
+                state = "content"
+            elif state == "content":
+                if stripped.startswith("# 内容"):
+                    continue
+                new_content_parts.append(line)
+
+        # 移除内容开头可能的空行
+        while new_content_parts and new_content_parts[0].strip() == "":
+            new_content_parts.pop(0)
+
+        new_content = "".join(new_content_parts).rstrip("\n")
+
+        return (new_title, new_content, new_tags)
+
+    except Exception as e:
+        console.print(f"[red]编辑失败: {e}[/red]")
+        return None
+    finally:
+        # 清理临时文件
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+
+
+def handle_add_note_approval(tool_call: dict) -> dict:
+    """处理 add_note 工具的用户审批.
+
+    Args:
+        tool_call: 工具调用字典，包含 id, name, args
+
+    Returns:
+        审批结果字典，包含 action, tool_call_id, tool_name, args, message
+    """
+    args = tool_call.get("args", {})
+    title = args.get("title", "")
+    content = args.get("content", "")
+    tags = args.get("tags", "")
+
+    console.print()
+    console.print(Panel(
+        Text.assemble(
+            ("📝 Agent 想要记录一条笔记\n\n", "bold yellow"),
+            ("标题: ", "bold cyan"), (f"{title}\n\n"),
+            ("内容: ", "bold cyan"), (f"{content}\n\n"),
+            ("标签: ", "bold cyan"), (f"{tags}" if tags else "无"),
+        ),
+        title="[bold]待确认操作[/bold]",
+        border_style="yellow"
+    ))
+
+    while True:
+        console.print("\n[dim]y=确认保存 | n=拒绝 | e=编辑修改[/dim]")
+        choice = Prompt.ask(
+            "[bold yellow]是否保存这条笔记？[/bold yellow]",
+            choices=["y", "n", "e"],
+            default="y"
+        )
+
+        if choice == "y":
+            # 直接执行 add_note
+            result_msg = _execute_add_note(title, content, tags)
+            return {
+                "action": "approve",
+                "tool_call_id": tool_call.get("id"),
+                "tool_name": tool_call.get("name"),
+                "args": args,
+                "message": result_msg
+            }
+
+        elif choice == "n":
+            return {
+                "action": "reject",
+                "tool_call_id": tool_call.get("id"),
+                "tool_name": tool_call.get("name"),
+                "message": "用户拒绝保存这条笔记"
+            }
+
+        elif choice == "e":
+            # 使用 vim 编辑
+            edited = edit_note_content(title, content, tags)
+            if edited is not None:
+                new_title, new_content, new_tags = edited
+
+                # 显示修改后的内容再次确认
+                console.print()
+                console.print(Panel(
+                    Text.assemble(
+                        ("修改后的笔记：\n\n", "bold green"),
+                        ("标题: ", "bold cyan"), (f"{new_title}\n\n"),
+                        ("内容: ", "bold cyan"), (f"{new_content}\n\n"),
+                        ("标签: ", "bold cyan"), (f"{new_tags}" if new_tags else "无"),
+                    ),
+                    title="[bold]确认修改[/bold]",
+                    border_style="green"
+                ))
+
+                if Confirm.ask("[bold yellow]确认保存修改后的笔记？[/bold yellow]", default=True):
+                    result_msg = _execute_add_note(new_title, new_content, new_tags)
+                    return {
+                        "action": "modify",
+                        "tool_call_id": tool_call.get("id"),
+                        "tool_name": tool_call.get("name"),
+                        "args": {"title": new_title, "content": new_content, "tags": new_tags},
+                        "message": result_msg
+                    }
+            else:
+                console.print("[yellow]编辑已取消或无变化[/yellow]")
+
+
+def _execute_add_note(title: str, content: str, tags: str = "") -> str:
+    """直接执行 add_note 操作（从 tools.py 复制的逻辑）.
+
+    Returns:
+        成功消息字符串
+    """
+    import uuid
+    note_id = str(uuid.uuid4())[:8]
+    created_at = datetime.datetime.now().strftime("%Y-%m-%d")
+    notes = _load_notes()
+    notes[note_id] = {
+        "title": title,
+        "content": content,
+        "tags": tags,
+        "created_at": created_at,
+    }
+    _save_notes(notes)
+
+    # 增量更新 FAISS 索引
+    doc = Document(
+        page_content=f"{title}\n{content}",
+        metadata={"note_id": note_id, "title": title,
+                  "tags": tags, "created_at": created_at}
+    )
+    vectorstore = _get_notes_vectorstore()
+    if vectorstore is not None:
+        vectorstore.add_documents([doc])
+    else:
+        from personal_agent.tools import _notes_vectorstore_cache, _get_embeddings
+        embeddings = _get_embeddings()
+        from langchain_community.vectorstores import FAISS
+        _notes_vectorstore_cache = FAISS.from_documents([doc], embeddings)
+        vectorstore = _notes_vectorstore_cache
+
+    from personal_agent.tools import NOTES_FAISS_DIR
+    os.makedirs(NOTES_FAISS_DIR, exist_ok=True)
+    vectorstore.save_local(NOTES_FAISS_DIR)
+
+    return f"笔记已保存，id: {note_id}，标题：{title}"
+
+
+def check_and_handle_interrupt(agent, config: dict) -> bool:
+    """检查是否有中断状态，并处理工具审批.
+
+    Args:
+        agent: agent 执行器
+        config: 配置字典
+
+    Returns:
+        True if 需要继续执行，False 表示结束或无中断
+    """
+    from personal_agent.graph.builder import TOOLS_REQUIRING_APPROVAL
+    from langgraph.prebuilt import ToolNode
+
+    # 获取当前状态
+    state = agent.get_state(config)
+    if not state.next:
+        return False
+
+    # 检查是否在 tools 节点前中断（待审批状态）
+    if "tools" in state.next:
+        messages = state.values.get("messages", [])
+        if not messages:
+            return False
+
+        last_msg = messages[-1]
+        if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+            # 检查是否有需要审批的工具
+            has_approval_tool = False
+            for tc in last_msg.tool_calls:
+                if tc.get("name") in TOOLS_REQUIRING_APPROVAL:
+                    has_approval_tool = True
+                    break
+
+            if has_approval_tool:
+                # 有需要审批的工具，走审批流程
+                approval_results = []
+                normal_tool_calls = []
+
+                for tc in last_msg.tool_calls:
+                    tool_name = tc.get("name")
+                    if tool_name in TOOLS_REQUIRING_APPROVAL:
+                        if tool_name == "add_note":
+                            result = handle_add_note_approval(tc)
+                            approval_results.append(result)
+                    else:
+                        normal_tool_calls.append(tc)
+
+                # 构建结果消息
+                new_messages = []
+
+                # 添加审批工具的结果
+                for res in approval_results:
+                    tool_msg = ToolMessage(
+                        content=res["message"],
+                        name=res["tool_name"],
+                        tool_call_id=res["tool_call_id"]
+                    )
+                    new_messages.append(tool_msg)
+                    # 显示工具结果
+                    console.print(format_tool_result(res["tool_name"], res["message"]))
+
+                # 如果有普通工具，单独执行
+                if normal_tool_calls:
+                    # 创建只包含普通工具的消息
+                    from copy import deepcopy
+                    temp_last_msg = deepcopy(last_msg)
+                    temp_last_msg.tool_calls = normal_tool_calls
+
+                    temp_state = {
+                        "messages": messages[:-1] + [temp_last_msg]
+                    }
+
+                    # 加载工具列表
+                    from personal_agent.tools import (
+                        get_environment_context, search_memory, get_memory,
+                        update_user_memory, web_search, add_note,
+                        search_notes, get_note,
+                    )
+                    tools = [
+                        get_environment_context, update_user_memory, search_memory,
+                        get_memory, web_search, add_note, search_notes, get_note,
+                    ]
+
+                    # 显示普通工具调用
+                    for tc in normal_tool_calls:
+                        console.print(format_tool_call(tc))
+
+                    # 执行普通工具
+                    tool_node = ToolNode(tools)
+                    try:
+                        result = tool_node.invoke(temp_state, config)
+                        for msg in result["messages"]:
+                            new_messages.append(msg)
+                            # 显示工具结果
+                            console.print(format_tool_result(msg.name, str(msg.content)))
+                    except Exception as e:
+                        console.print(f"[red]执行工具出错: {e}[/red]")
+
+                # 更新状态
+                if new_messages:
+                    agent.update_state(
+                        config,
+                        {"messages": new_messages},
+                        as_node="tools"
+                    )
+
+                return True
+            else:
+                # 没有需要审批的工具，直接继续执行
+                return True
+
+    return False
+
+
 def format_tool_call(tool_call: dict) -> Panel:
     """Format a tool call for display."""
     name = tool_call.get("name", "unknown")
@@ -297,86 +619,96 @@ def stream_agent_response(agent, user_input: str, config: dict) -> str:
 
     Returns the final response content for potential copying.
     """
-
-    # Track state for streaming
-    current_content = ""
-    final_content = ""  # Track the last response for /copy
-    # Use index as key since id may be None in subsequent chunks
-    pending_tool_calls = {}  # index -> {id, name, args}
-    printed_tool_calls = set()  # Track by index
-
     console.print("[bold blue]Agent:[/bold blue]")
 
-    # Use Live for real-time markdown rendering
-    with Live(Markdown(""), console=console, refresh_per_second=10, vertical_overflow="visible") as live:
-        for event in agent.stream(
-            {"messages": [("user", user_input)]},
-            config,
-            stream_mode="messages"
-        ):
-            msg, metadata = event
+    # 第一步：发送用户输入
+    final_output = ""
+    current_input = {"messages": [("user", user_input)]}
 
-            # Handle AI message chunks (streaming text)
-            if isinstance(msg, AIMessageChunk):
-                # Stream content tokens
-                if msg.content:
-                    current_content += normalize_llm_content(msg.content)
-                    live.update(Markdown(current_content))
+    while True:
+        # Track state for streaming
+        current_content = ""
+        final_content = ""
+        pending_tool_calls = {}
+        printed_tool_calls = set()
 
-                # Handle tool calls - use index as the key
-                if msg.tool_call_chunks:
-                    for chunk in msg.tool_call_chunks:
-                        idx = chunk.get("index", 0)
+        # Use Live for real-time markdown rendering
+        with Live(Markdown(""), console=console, refresh_per_second=10, vertical_overflow="visible") as live:
+            try:
+                # 遍历 stream
+                for event in agent.stream(
+                    current_input,
+                    config,
+                    stream_mode="messages"
+                ):
+                    msg, metadata = event
 
-                        if idx not in pending_tool_calls:
-                            pending_tool_calls[idx] = {
-                                "id": chunk.get("id"),
-                                "name": chunk.get("name") or "",
-                                "args": chunk.get("args") or ""
-                            }
-                        else:
-                            # Update id if provided
-                            if chunk.get("id"):
-                                pending_tool_calls[idx]["id"] = chunk["id"]
-                            # Update name if provided
-                            if chunk.get("name"):
-                                pending_tool_calls[idx]["name"] = chunk["name"]
-                            # Accumulate args string
-                            if chunk.get("args"):
-                                pending_tool_calls[idx]["args"] += chunk["args"]
+                    # Handle AI message chunks (streaming text)
+                    if isinstance(msg, AIMessageChunk):
+                        if msg.content:
+                            current_content += normalize_llm_content(msg.content)
+                            live.update(Markdown(current_content))
 
-            # Handle tool messages (results)
-            elif isinstance(msg, ToolMessage):
-                # Stop live update temporarily to print tool info
-                live.stop()
+                        # Handle tool calls
+                        if msg.tool_call_chunks:
+                            for chunk in msg.tool_call_chunks:
+                                idx = chunk.get("index", 0)
+                                if idx not in pending_tool_calls:
+                                    pending_tool_calls[idx] = {
+                                        "id": chunk.get("id"),
+                                        "name": chunk.get("name") or "",
+                                        "args": chunk.get("args") or ""
+                                    }
+                                else:
+                                    if chunk.get("id"):
+                                        pending_tool_calls[idx]["id"] = chunk["id"]
+                                    if chunk.get("name"):
+                                        pending_tool_calls[idx]["name"] = chunk["name"]
+                                    if chunk.get("args"):
+                                        pending_tool_calls[idx]["args"] += chunk["args"]
 
-                # Print any pending tool calls first
-                for idx, tc in pending_tool_calls.items():
-                    if idx not in printed_tool_calls and tc.get("name"):
-                        try:
-                            args = json.loads(tc["args"]) if tc["args"] else {}
-                        except json.JSONDecodeError:
-                            args = {"raw": tc["args"]}
-                        console.print(format_tool_call({"name": tc["name"], "args": args}))
-                        printed_tool_calls.add(idx)
+                    # Handle tool messages (results)
+                    elif isinstance(msg, ToolMessage):
+                        live.stop()
 
-                # Print tool result
-                tool_name = msg.name or "unknown"
-                console.print(format_tool_result(tool_name, str(msg.content)))
-                # Reset for potential next round of tool calls
-                pending_tool_calls.clear()
-                printed_tool_calls.clear()
-                # Save content before reset for /copy
-                if current_content:
-                    final_content = current_content
-                current_content = ""
-                console.print("[bold blue]Agent:[/bold blue]")
+                        # Print any pending tool calls first
+                        for idx, tc in pending_tool_calls.items():
+                            if idx not in printed_tool_calls and tc.get("name"):
+                                try:
+                                    args = json.loads(tc["args"]) if tc["args"] else {}
+                                except json.JSONDecodeError:
+                                    args = {"raw": tc["args"]}
+                                console.print(format_tool_call({"name": tc["name"], "args": args}))
+                                printed_tool_calls.add(idx)
 
-                # Restart live update for next response
-                live.start()
+                        # Print tool result
+                        tool_name = msg.name or "unknown"
+                        console.print(format_tool_result(tool_name, str(msg.content)))
 
-    # Return the last response content (current_content if no tool calls, else final_content)
-    return current_content if current_content else final_content
+                        pending_tool_calls.clear()
+                        printed_tool_calls.clear()
+                        if current_content:
+                            final_content = current_content
+                        current_content = ""
+                        console.print("[bold blue]Agent:[/bold blue]")
+
+                        live.start()
+            except Exception:
+                pass
+
+        # 保存输出
+        iteration_output = current_content if current_content else final_content
+        if iteration_output:
+            final_output = iteration_output
+
+        # 检查中断
+        if check_and_handle_interrupt(agent, config):
+            current_input = None  # 继续执行
+            continue
+
+        break
+
+    return final_output
 
 
 def blocking_agent_response(agent, user_input: str, config: dict) -> str:
@@ -386,34 +718,41 @@ def blocking_agent_response(agent, user_input: str, config: dict) -> str:
     """
     console.print("[bold blue]Agent:[/bold blue]")
 
-    response = agent.invoke(
-        {"messages": [("user", user_input)]},
-        config
-    )
-
-    # 提取所有消息，显示工具调用信息
-    messages = response.get("messages", [])
     final_content = ""
+    current_input = {"messages": [("user", user_input)]}
 
-    for msg in messages:
-        # 显示工具调用
-        if hasattr(msg, "tool_calls") and msg.tool_calls:
-            for tc in msg.tool_calls:
-                console.print(format_tool_call({
-                    "name": tc.get("name", "unknown"),
-                    "args": tc.get("args", {})
-                }))
+    while True:
+        response = agent.invoke(current_input, config)
 
-        # 显示工具返回结果
-        if isinstance(msg, ToolMessage):
-            tool_name = msg.name or "unknown"
-            console.print(format_tool_result(tool_name, str(msg.content)))
+        # 提取所有消息，显示工具调用信息
+        messages = response.get("messages", [])
 
-        # 获取最终 AI 响应内容
-        if hasattr(msg, "content") and msg.content and hasattr(msg, "type") and msg.type == "ai":
-            content = normalize_llm_content(msg.content)
-            if content:
-                final_content = content
+        for msg in messages:
+            # 显示工具调用
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                for tc in msg.tool_calls:
+                    console.print(format_tool_call({
+                        "name": tc.get("name", "unknown"),
+                        "args": tc.get("args", {})
+                    }))
+
+            # 显示工具返回结果
+            if isinstance(msg, ToolMessage):
+                tool_name = msg.name or "unknown"
+                console.print(format_tool_result(tool_name, str(msg.content)))
+
+            # 获取最终 AI 响应内容
+            if hasattr(msg, "content") and msg.content and hasattr(msg, "type") and msg.type == "ai":
+                content = normalize_llm_content(msg.content)
+                if content:
+                    final_content = content
+
+        # 检查中断
+        if check_and_handle_interrupt(agent, config):
+            current_input = None  # 继续执行
+            continue
+
+        break
 
     # 渲染最终响应
     if final_content:
@@ -481,8 +820,8 @@ def main():
     console.print("[dim]命令: /notes 浏览笔记 | /tidy 整理记忆 | /clear 清空上下文 | /copy 复制上轮输出 | /exit 退出[/dim]")
     console.print("[dim]─" * 50 + "[/dim]")
 
-    last_response = ""  # Track last agent response for /copy
-    use_prompt_toolkit = True  # 标记是否使用 prompt_toolkit
+    last_response = ""
+    use_prompt_toolkit = True
 
     while True:
         try:
@@ -490,12 +829,11 @@ def main():
                 try:
                     user_input = session.prompt(
                         "User: ",
-                        multiline=False,  # 单行模式
+                        multiline=False,
                         key_bindings=bindings,
-                        wrap_lines=False,  # 禁用自动换行，避免长行渲染崩溃
+                        wrap_lines=False,
                     )
                 except Exception as e:
-                    # prompt_toolkit 出错时，回退到标准 input()
                     console.print(f"[yellow]警告: 输入组件出错，切换到兼容模式 ({e})[/yellow]")
                     console.print("[dim]提示: 兼容模式下使用上下方向键浏览历史输入[/dim]")
                     use_prompt_toolkit = False
@@ -535,12 +873,11 @@ def main():
             if not stripped_input:
                 continue
 
-            # 根据配置选择输出模式
             if STREAM_OUTPUT:
                 last_response = stream_agent_response(agent, user_input, config)
             else:
                 last_response = blocking_agent_response(agent, user_input, config)
-            print()  # Extra line between exchanges
+            print()
 
         except (KeyboardInterrupt, EOFError):
             console.print("\n[dim]再见！[/dim]")

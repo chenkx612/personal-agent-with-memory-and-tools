@@ -9,6 +9,9 @@ from langgraph.graph import END, START, StateGraph
 from .nodes import create_agent_node, create_tool_node
 from .state import AgentState
 
+# 需要用户审批的工具列表
+TOOLS_REQUIRING_APPROVAL = {"add_note"}
+
 
 def should_continue(state: AgentState) -> Literal["tools", "__end__"]:
     """Determine whether to continue with tool execution or end.
@@ -31,7 +34,7 @@ def build_agent_graph(
     system_prompt: str,
     checkpointer=None,
 ):
-    """Build the agent graph with ReAct pattern.
+    """Build the agent graph with ReAct pattern and human-in-the-loop approval.
 
     Graph structure:
         START → agent ←→ tools
@@ -74,5 +77,11 @@ def build_agent_graph(
     )
     builder.add_edge("tools", "agent")
 
-    # Compile with checkpointer
-    return builder.compile(checkpointer=checkpointer)
+    # 在 tools 节点前设置中断点，用于需要用户审批的工具
+    # 这样当有工具调用时，会在执行前中断，我们在 CLI 层判断是否需要审批
+    graph = builder.compile(
+        checkpointer=checkpointer,
+        interrupt_before=["tools"],  # 在执行工具前中断
+    )
+
+    return graph
