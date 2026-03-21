@@ -25,7 +25,7 @@ from rich.live import Live
 from rich.prompt import Prompt
 from langchain_core.messages import AIMessageChunk, ToolMessage
 from personal_agent.core import get_agent_executor, get_llm
-from personal_agent.tools import _load_memory, _save_memory
+from personal_agent.tools import _load_memory, _save_memory, _load_notes
 
 console = Console()
 
@@ -204,6 +204,69 @@ def tidy_memory() -> bool:
     except Exception as e:
         console.print(f"[red]整理失败: {e}[/red]")
         return False
+
+
+def view_notes_menu():
+    """笔记浏览子菜单：列出笔记并可选择查看详情。"""
+    while True:
+        notes = _load_notes()
+
+        if not notes:
+            console.print("[yellow]笔记本为空。[/yellow]")
+            return
+
+        # 按日期倒序排列
+        sorted_notes = sorted(
+            notes.items(),
+            key=lambda x: x[1]["created_at"],
+            reverse=True
+        )
+
+        # 显示笔记列表
+        console.print("\n[bold cyan]📔 笔记列表[/bold cyan]")
+        console.print("[dim]输入序号查看笔记，q 返回主菜单[/dim]\n")
+
+        for idx, (note_id, note) in enumerate(sorted_notes, 1):
+            title = note["title"]
+            date = note["created_at"]
+            tags = note["tags"]
+            content_preview = note["content"][:50].replace("\n", " ")
+
+            tag_str = f" [dim]| tags: {tags}[/dim]" if tags else ""
+            console.print(f"  [bold]{idx:2d}[/bold]. [{date}] {title}{tag_str}")
+            console.print(f"       [dim]{content_preview}...[/dim]\n")
+
+        # 等待用户输入
+        choice = Prompt.ask("[bold yellow]选择[/bold yellow]", default="q")
+
+        if choice.lower() in ("q", "quit", "exit"):
+            return
+
+        # 尝试解析序号
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(sorted_notes):
+                note_id, note = sorted_notes[idx]
+                show_note_detail(note_id, note)
+            else:
+                console.print("[red]序号超出范围[/red]")
+        except ValueError:
+            console.print("[red]请输入有效序号或 q[/red]")
+
+
+def show_note_detail(note_id: str, note: dict):
+    """显示单条笔记详情。"""
+    console.print()
+    console.print(Panel(
+        Markdown(f"# {note['title']}\n\n{note['content']}"),
+        title=f"[bold blue]{note['title']}[/bold blue]",
+        subtitle=f"[dim]{note['created_at']} | id: {note_id}[/dim]",
+        border_style="blue"
+    ))
+    if note["tags"]:
+        console.print(f"[dim]标签: {note['tags']}[/dim]")
+    console.print()
+    Prompt.ask("[dim]按 Enter 返回列表[/dim]")
 
 
 def format_tool_call(tool_call: dict) -> Panel:
@@ -415,7 +478,7 @@ def main():
     output_mode = "流式" if STREAM_OUTPUT else "阻塞"
     console.print(f"[dim]Session ID: {thread_id}[/dim]")
     console.print(f"[dim]输出模式: {output_mode}[/dim]")
-    console.print("[dim]命令: /tidy 整理记忆 | /clear 清空上下文 | /copy 复制上轮输出 | /exit 退出[/dim]")
+    console.print("[dim]命令: /notes 浏览笔记 | /tidy 整理记忆 | /clear 清空上下文 | /copy 复制上轮输出 | /exit 退出[/dim]")
     console.print("[dim]─" * 50 + "[/dim]")
 
     last_response = ""  # Track last agent response for /copy
@@ -445,6 +508,10 @@ def main():
             if stripped_input == "/exit":
                 console.print("[dim]再见！[/dim]")
                 break
+
+            if stripped_input == "/notes":
+                view_notes_menu()
+                continue
 
             if stripped_input == "/tidy":
                 tidy_memory()
