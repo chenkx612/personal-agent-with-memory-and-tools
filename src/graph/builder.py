@@ -6,8 +6,8 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from .nodes import create_agent_node, create_tool_node
-from .state import AgentState
+from graph.nodes import create_agent_node, create_tool_node
+from graph.state import AgentState
 
 # 需要用户审批的工具列表
 TOOLS_REQUIRING_APPROVAL = {"add_note"}

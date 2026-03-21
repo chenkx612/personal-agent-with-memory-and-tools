@@ -3,11 +3,7 @@ __pycache__/
 *.pyc
 temp/
 .pytest_cache/
-test/
 CLAUDE.md
 .claude
 config.yaml
-data/user_memory.json
-data/faiss_index/
-data/notes.json
-data/notes_faiss_index/
+data/

@@ -4,7 +4,7 @@ from langchain_core.messages import SystemMessage, ToolMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.prebuilt import ToolNode
 
-from .state import AgentState
+from graph.state import AgentState
 
 
 def create_agent_node(llm, system_prompt: str):

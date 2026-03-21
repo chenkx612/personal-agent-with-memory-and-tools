@@ -24,8 +24,27 @@ from rich.text import Text
 from rich.live import Live
 from rich.prompt import Prompt, Confirm
 from langchain_core.messages import AIMessageChunk, ToolMessage
-from personal_agent.core import get_agent_executor, get_llm
-from personal_agent.tools import _load_memory, _save_memory, _load_notes, _save_notes, _get_notes_vectorstore
+from core import get_agent_executor
+from llm import get_llm
+from tools import (
+    _load_memory,
+    _save_memory,
+    _load_notes,
+    _save_notes,
+    _get_notes_vectorstore,
+    _notes_vectorstore_cache,
+    _get_embeddings,
+    NOTES_FAISS_DIR,
+    get_environment_context,
+    search_memory,
+    get_memory,
+    update_user_memory,
+    web_search,
+    add_note,
+    search_notes,
+    get_note,
+)
+from graph.builder import TOOLS_REQUIRING_APPROVAL
 from langchain_core.documents import Document
 import datetime
 
@@ -437,12 +456,11 @@ def handle_add_note_approval(tool_call: dict) -> dict:
 
 
 def _execute_add_note(title: str, content: str, tags: str = "") -> str:
-    """直接执行 add_note 操作（从 tools.py 复制的逻辑）.
+    """直接执行 add_note 操作.
 
     Returns:
         成功消息字符串
     """
-    import uuid
     note_id = str(uuid.uuid4())[:8]
     created_at = datetime.datetime.now().strftime("%Y-%m-%d")
     notes = _load_notes()
@@ -464,13 +482,11 @@ def _execute_add_note(title: str, content: str, tags: str = "") -> str:
     if vectorstore is not None:
         vectorstore.add_documents([doc])
     else:
-        from personal_agent.tools import _notes_vectorstore_cache, _get_embeddings
         embeddings = _get_embeddings()
         from langchain_community.vectorstores import FAISS
         _notes_vectorstore_cache = FAISS.from_documents([doc], embeddings)
         vectorstore = _notes_vectorstore_cache
 
-    from personal_agent.tools import NOTES_FAISS_DIR
     os.makedirs(NOTES_FAISS_DIR, exist_ok=True)
     vectorstore.save_local(NOTES_FAISS_DIR)
 
@@ -487,7 +503,6 @@ def check_and_handle_interrupt(agent, config: dict) -> bool:
     Returns:
         True if 需要继续执行，False 表示结束或无中断
     """
-    from personal_agent.graph.builder import TOOLS_REQUIRING_APPROVAL
     from langgraph.prebuilt import ToolNode
 
     # 获取当前状态
@@ -549,15 +564,16 @@ def check_and_handle_interrupt(agent, config: dict) -> bool:
                         "messages": messages[:-1] + [temp_last_msg]
                     }
 
-                    # 加载工具列表
-                    from personal_agent.tools import (
-                        get_environment_context, search_memory, get_memory,
-                        update_user_memory, web_search, add_note,
-                        search_notes, get_note,
-                    )
+                    # 工具列表
                     tools = [
-                        get_environment_context, update_user_memory, search_memory,
-                        get_memory, web_search, add_note, search_notes, get_note,
+                        get_environment_context,
+                        update_user_memory,
+                        search_memory,
+                        get_memory,
+                        web_search,
+                        add_note,
+                        search_notes,
+                        get_note,
                     ]
 
                     # 显示普通工具调用
