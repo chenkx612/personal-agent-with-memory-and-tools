@@ -14,12 +14,24 @@ _DEFAULT_SYSTEM_PROMPT = """你是我（用户）的专属个人秘书。
 - 温柔：态度友善，耐心细致，充满人文关怀。
 """
 
+# Default configuration
+_DEFAULT_CONFIG = {
+    "llm": {
+        "api_key": None,
+        "model": "deepseek-chat",
+        "base_url": "https://api.deepseek.com",
+        "temperature": 0.7,
+    },
+    "stream_output": True,
+    "system_prompt": _DEFAULT_SYSTEM_PROMPT,
+}
+
 
 def load_config():
     """Load configuration from config.yaml.
 
     Returns:
-        dict: Configuration dictionary with system_prompt and other settings.
+        dict: Configuration dictionary with all settings.
     """
     config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.yaml")
     config = {}
@@ -31,8 +43,22 @@ def load_config():
         except Exception as e:
             print(f"Warning: Failed to load config.yaml: {e}")
 
-    # Set defaults
-    if "system_prompt" not in config:
-        config["system_prompt"] = _DEFAULT_SYSTEM_PROMPT
+    # Merge with defaults
+    merged = _deep_merge(_DEFAULT_CONFIG, config)
 
-    return config
+    # Set HuggingFace endpoint if configured
+    if merged.get("hf_endpoint"):
+        os.environ["HF_ENDPOINT"] = merged["hf_endpoint"]
+
+    return merged
+
+
+def _deep_merge(default, override):
+    """Deep merge two dictionaries."""
+    result = default.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result

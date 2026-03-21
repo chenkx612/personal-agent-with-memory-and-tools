@@ -1,7 +1,26 @@
 # Personal AI Agent 配置文件
 # 复制此文件为 config.yaml 并根据需要修改
 
-# 系统提示词（定义助手的性格、行为方式等）
+# ==================== LLM 配置 ====================
+llm:
+  # API 密钥（必填）
+  api_key: "sk-..."
+  # 模型名称
+  model: "deepseek-chat"
+  # API 基础 URL
+  base_url: "https://api.deepseek.com"
+  # 温度参数（可选，默认 0.7）
+  temperature: 0.7
+
+# ==================== 输出配置 ====================
+# 是否使用流式输出
+stream_output: true
+
+# ==================== HuggingFace 镜像（可选）====================
+# 用于在中国下载 embedding 模型
+# hf_endpoint: "https://hf-mirror.com"
+
+# ==================== 系统提示词 ====================
 system_prompt: |
   你是我（用户）的专属个人秘书。
 
@@ -16,19 +35,8 @@ system_prompt: |
   2. 书面交付要详尽：当用户要求撰写报告、编写代码、制定方案等正式工作成果时，请提供完整、详尽、高质量的内容。这是书面呈交的工作成果，必须严谨细致。
   3. 区分场景：请敏锐判断当前是"口头汇报"（简洁）还是"书面呈交"（详尽）。
 
-  关于记忆和工具的使用：
-  - 你可以访问用户的长期记忆。
-  - 要保存关于用户的新信息，请使用 `update_user_memory`。
-  - 要回忆关于用户的信息，请使用 `search_memory` (RAG) 或 `get_user_memory` (直接查找)。
-  - 你还可以查看时间，以及使用 `web_search` 搜索网络获取最新信息。
-
-  你应该根据用户的问题自主决定何时搜索记忆。
-  如果用户询问个人细节（例如，"我叫什么名字？"，"我喜欢什么？"），请使用 `search_memory` 查找答案。
-  不要编造用户细节。如果不确定，请先查阅记忆。
-  写入记忆前，先用 `search_memory` 检查是否已有相关记忆，有则整合更新，无则新建。
-
-# 可选配置（取消注释以覆盖默认值）
-# llm_temperature: 0.7
-# llm_model: deepseek-chat
-# memory_file: data/user_memory.json
-# vector_store_cache: data/vectorstore_cache.faiss
+# ==================== 路径配置（可选）====================
+# 记忆文件路径
+# memory_file: "data/user_memory.json"
+# 向量存储缓存路径
+# vector_store_cache: "data/vectorstore_cache.faiss"

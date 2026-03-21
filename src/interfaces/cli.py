@@ -1,14 +1,11 @@
 import os
-from dotenv import load_dotenv
+from config import load_config
 
-# 先加载 .env 文件，确保环境变量可用
-load_dotenv()
-
-# Set environment variable for HuggingFace mirror to resolve connection issues
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+# 加载配置
+config = load_config()
 
 # 读取输出模式配置，默认为流式输出
-STREAM_OUTPUT = os.getenv("STREAM_OUTPUT", "true").lower() == "true"
+STREAM_OUTPUT = config.get("stream_output", True)
 
 import uuid
 import json

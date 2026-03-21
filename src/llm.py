@@ -1,21 +1,16 @@
 """LLM initialization for the personal agent."""
 
-import os
-from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-
-# Load environment variables
-load_dotenv()
+from config import load_config
 
 
 def get_llm():
     """Get LLM instance for standalone use (e.g., memory tidying)."""
-    api_key = os.getenv("API_KEY")
-    model = os.getenv("MODEL")
-    base_url = os.getenv("BASE_URL")
+    config = load_config()
+    llm_config = config.get("llm", {})
 
     return ChatOpenAI(
-        model=model,
-        api_key=api_key,
-        base_url=base_url,
+        model=llm_config.get("model"),
+        api_key=llm_config.get("api_key"),
+        base_url=llm_config.get("base_url"),
     )
