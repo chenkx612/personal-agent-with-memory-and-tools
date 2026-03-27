@@ -1,6 +1,10 @@
 """Core agent initialization logic."""
 
+import os
+import sqlite3
 from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from graph import build_agent_graph
 from config import load_config
@@ -16,13 +20,20 @@ from tools import (
 )
 
 
-def get_agent_executor():
-    """Create and return the agent executor.
+def get_agent_executor(checkpointer=None):
+    """Create and return the agent executor and checkpointer.
 
     Returns a compiled StateGraph with:
     - ReAct pattern (agent ↔ tools loop)
     - Memory tools for long-term user memory
-    - MemorySaver checkpointer for conversation persistence
+    - SqliteSaver checkpointer for conversation persistence
+
+    Args:
+        checkpointer: Optional custom checkpointer. If None, creates SqliteSaver
+            with default database path (data/checkpoints.db).
+
+    Returns:
+        Tuple of (agent_executor, checkpointer)
     """
     config = load_config()
     llm_config = config.get("llm", {})
@@ -53,8 +64,17 @@ def get_agent_executor():
         get_note,
     ]
 
-    return build_agent_graph(
+    if checkpointer is None:
+        db_path = os.path.join("data", "checkpoints.db")
+        os.makedirs("data", exist_ok=True)
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        checkpointer = SqliteSaver(conn)
+
+    agent = build_agent_graph(
         llm=llm,
         tools=tools,
         system_prompt=config["system_prompt"],
+        checkpointer=checkpointer,
     )
+
+    return agent, checkpointer

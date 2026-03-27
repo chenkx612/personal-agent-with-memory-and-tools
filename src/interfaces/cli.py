@@ -288,6 +288,122 @@ def show_note_detail(note_id: str, note: dict):
     Prompt.ask("[dim]按 Enter 返回列表[/dim]")
 
 
+def get_session_list(checkpointer, agent, limit=20):
+    """从 SQLite checkpointer 获取历史会话列表，包含摘要信息。
+
+    Returns:
+        List of (thread_id, summary) tuples.
+    """
+    try:
+        with checkpointer.conn as conn:
+            cursor = conn.execute("""
+                SELECT thread_id
+                FROM checkpoints
+                GROUP BY thread_id
+                ORDER BY MAX(checkpoint_id) DESC
+                LIMIT ?
+            """, (limit,))
+            rows = cursor.fetchall()
+    except Exception:
+        return []
+
+    sessions = []
+    for (thread_id,) in rows:
+        # 获取第一条用户消息作为摘要
+        config = {"configurable": {"thread_id": thread_id}}
+        try:
+            state = agent.get_state(config)
+            messages = state.values.get("messages", [])
+            summary = ""
+            for msg in messages:
+                if hasattr(msg, "type") and msg.type == "human":
+                    content = str(msg.content)[:50].replace("\n", " ")
+                    summary = content + ("..." if len(str(msg.content)) > 50 else "")
+                    break
+            sessions.append((thread_id, summary))
+        except Exception:
+            sessions.append((thread_id, ""))
+    return sessions
+
+
+def view_sessions_menu(checkpointer, agent) -> dict | None:
+    """会话浏览子菜单：列出历史会话并可选择恢复。
+
+    Returns:
+        config 字典如果选择了会话，None 如果取消或无会话。
+    """
+    while True:
+        sessions = get_session_list(checkpointer, agent)
+
+        if not sessions:
+            console.print("[yellow]暂无历史会话。[/yellow]")
+            return None
+
+        # 显示会话列表
+        console.print("\n[bold cyan]📋 历史会话[/bold cyan]")
+        console.print("[dim]输入序号恢复会话，q 返回主菜单[/dim]\n")
+
+        for idx, (thread_id, summary) in enumerate(sessions, 1):
+            if summary:
+                console.print(f"  [bold]{idx:2d}[/bold]. {thread_id[:8]}... {summary}")
+            else:
+                console.print(f"  [bold]{idx:2d}[/bold]. {thread_id[:8]}...")
+
+        # 等待用户输入
+        choice = Prompt.ask("[bold yellow]选择[/bold yellow]", default="q")
+
+        if choice.lower() in ("q", "quit", "exit"):
+            return None
+
+        # 尝试解析序号
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(sessions):
+                thread_id = sessions[idx][0]
+                return {"configurable": {"thread_id": thread_id}}
+            else:
+                console.print("[red]序号超出范围[/red]")
+        except ValueError:
+            console.print("[red]请输入有效序号或 q[/red]")
+
+
+def display_history_messages(agent, config: dict):
+    """显示历史对话消息。"""
+    state = agent.get_state(config)
+    messages = state.values.get("messages", [])
+
+    if not messages:
+        return
+
+    console.print("\n[bold cyan]═══ 历史对话 ═══[/bold cyan]\n")
+
+    for msg in messages:
+        msg_type = getattr(msg, "type", None)
+        if msg_type == "human":
+            content = normalize_llm_content(msg.content)
+            console.print(Panel(
+                Markdown(content),
+                title="[bold red]User[/bold red]",
+                border_style="red",
+                expand=False
+            ))
+        elif msg_type == "ai":
+            content = normalize_llm_content(msg.content)
+            console.print(Panel(
+                Markdown(content),
+                title="[bold blue]Assistant[/bold blue]",
+                border_style="blue",
+                expand=False
+            ))
+        elif hasattr(msg, "name") and msg.name == "add_note":
+            console.print(Panel(
+                f"[笔记已保存] {msg.content}",
+                title="[bold green]Tool: add_note[/bold green]",
+                border_style="green",
+                expand=False
+            ))
+
+
 def edit_note_content(title: str, content: str, tags: str) -> tuple[str, str, str] | None:
     """在系统编辑器中编辑笔记内容，返回编辑后的 (title, content, tags)，失败或取消返回 None。"""
     editor = os.environ.get("EDITOR", "vim")
@@ -777,7 +893,7 @@ def blocking_agent_response(agent, user_input: str, config: dict) -> str:
 def main():
     console.print("[bold]Initializing Personal Agent...[/bold]")
     try:
-        agent = get_agent_executor()
+        agent, checkpointer = get_agent_executor()
     except Exception as e:
         console.print(f"[red]Error initializing agent: {e}[/red]")
         return
@@ -802,7 +918,7 @@ def main():
     output_mode = "流式" if STREAM_OUTPUT else "阻塞"
     console.print(f"[dim]Session ID: {thread_id}[/dim]")
     console.print(f"[dim]输出模式: {output_mode}[/dim]")
-    console.print("[dim]命令: /notes 浏览笔记 | /tidy 整理记忆 | /clear 清空上下文 | /exit 退出[/dim]")
+    console.print("[dim]命令: /notes 浏览笔记 | /tidy 整理记忆 | /resume 恢复会话 | /clear 清空上下文 | /exit 退出[/dim]")
     console.print("[dim]─" * 50 + "[/dim]")
 
     use_prompt_toolkit = True
@@ -837,6 +953,13 @@ def main():
 
             if stripped_input == "/tidy":
                 tidy_memory()
+                continue
+
+            if stripped_input == "/resume":
+                config = view_sessions_menu(checkpointer, agent)
+                if config:
+                    console.print(f"[green]✓ 已恢复会话: {config['configurable']['thread_id']}[/green]")
+                    display_history_messages(agent, config)
                 continue
 
             if stripped_input == "/clear":
