@@ -774,34 +774,6 @@ def blocking_agent_response(agent, user_input: str, config: dict) -> str:
     return final_content
 
 
-def copy_to_clipboard(text: str) -> bool:
-    """Copy text to system clipboard. Returns True on success."""
-    import sys
-    try:
-        if sys.platform == "darwin":
-            subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
-        elif sys.platform == "win32":
-            subprocess.run(["clip"], input=text.encode("utf-8"), check=True)
-        else:
-            # Linux - try xclip first, then xsel
-            try:
-                subprocess.run(
-                    ["xclip", "-selection", "clipboard"],
-                    input=text.encode("utf-8"),
-                    check=True
-                )
-            except FileNotFoundError:
-                subprocess.run(
-                    ["xsel", "--clipboard", "--input"],
-                    input=text.encode("utf-8"),
-                    check=True
-                )
-        return True
-    except Exception as e:
-        console.print(f"[red]复制失败: {e}[/red]")
-        return False
-
-
 def main():
     console.print("[bold]Initializing Personal Agent...[/bold]")
     try:
@@ -830,10 +802,9 @@ def main():
     output_mode = "流式" if STREAM_OUTPUT else "阻塞"
     console.print(f"[dim]Session ID: {thread_id}[/dim]")
     console.print(f"[dim]输出模式: {output_mode}[/dim]")
-    console.print("[dim]命令: /notes 浏览笔记 | /tidy 整理记忆 | /clear 清空上下文 | /copy 复制上轮输出 | /exit 退出[/dim]")
+    console.print("[dim]命令: /notes 浏览笔记 | /tidy 整理记忆 | /clear 清空上下文 | /exit 退出[/dim]")
     console.print("[dim]─" * 50 + "[/dim]")
 
-    last_response = ""
     use_prompt_toolkit = True
 
     while True:
@@ -875,21 +846,13 @@ def main():
                 console.print(f"[dim]Session ID: {thread_id}[/dim]")
                 continue
 
-            if stripped_input == "/copy":
-                if last_response:
-                    if copy_to_clipboard(last_response):
-                        console.print("[green]✓ 已复制到剪贴板[/green]")
-                else:
-                    console.print("[yellow]没有可复制的内容[/yellow]")
-                continue
-
             if not stripped_input:
                 continue
 
             if STREAM_OUTPUT:
-                last_response = stream_agent_response(agent, user_input, config)
+                stream_agent_response(agent, user_input, config)
             else:
-                last_response = blocking_agent_response(agent, user_input, config)
+                blocking_agent_response(agent, user_input, config)
             print()
 
         except (KeyboardInterrupt, EOFError):
