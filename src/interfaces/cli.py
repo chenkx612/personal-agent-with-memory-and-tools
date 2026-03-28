@@ -408,14 +408,14 @@ def edit_note_content(title: str, content: str, tags: str) -> tuple[str, str, st
     """在系统编辑器中编辑笔记内容，返回编辑后的 (title, content, tags)，失败或取消返回 None。"""
     editor = os.environ.get("EDITOR", "vim")
 
-    # 准备编辑内容
-    edit_content = f"""# 标题 (第一行是标题，后面的 # 开头的行是注释)
+    # 准备编辑内容 - 使用明确的分隔标记
+    edit_content = f"""# 标题
 {title}
 
-# 标签 (多个标签用逗号分隔)
+# 标签
 {tags}
 
-# 内容 (从这里开始是笔记正文)
+# 内容
 {content}
 """
 
@@ -439,36 +439,40 @@ def edit_note_content(title: str, content: str, tags: str) -> tuple[str, str, st
 
         # 读取编辑后的内容
         with open(temp_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
+            raw_content = f.read()
 
-        # 解析编辑后的内容
-        new_title = ""
-        new_tags = ""
-        new_content_parts = []
-        state = "title"  # title -> tags -> content
+        # 解析编辑后的内容 - 使用 # 标题 / # 标签 / # 内容 作为明确分隔
+        new_title = title
+        new_tags = tags
+        new_content = content
+
+        # 找到各个区块
+        lines = raw_content.splitlines()
+        sections = {"title": [], "tags": [], "content": []}
+        current_section = None
 
         for line in lines:
-            stripped = line.rstrip("\n")
-            if state == "title":
-                if stripped.startswith("#"):
-                    continue
-                new_title = stripped
-                state = "tags"
-            elif state == "tags":
-                if stripped.startswith("#"):
-                    continue
-                new_tags = stripped
-                state = "content"
-            elif state == "content":
-                if stripped.startswith("# 内容"):
-                    continue
-                new_content_parts.append(line)
+            stripped = line.strip()
+            if stripped == "# 标题":
+                current_section = "title"
+            elif stripped == "# 标签":
+                current_section = "tags"
+            elif stripped == "# 内容":
+                current_section = "content"
+            elif current_section is not None:
+                sections[current_section].append(line.rstrip("\n"))
 
-        # 移除内容开头可能的空行
-        while new_content_parts and new_content_parts[0].strip() == "":
-            new_content_parts.pop(0)
+        # 各区块取非空行合并（保留多行内容）
+        if sections["title"]:
+            new_title = "\n".join(sections["title"]).strip()
+        if sections["tags"]:
+            new_tags = "\n".join(sections["tags"]).strip()
+        if sections["content"]:
+            new_content = "\n".join(sections["content"]).strip()
 
-        new_content = "".join(new_content_parts).rstrip("\n")
+        # 检查是否有实质变化
+        if new_title == title and new_content == content and new_tags == tags:
+            return None  # 无变化
 
         return (new_title, new_content, new_tags)
 
