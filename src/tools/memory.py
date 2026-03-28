@@ -152,8 +152,10 @@ def search_memory(query: str, k: int = 3):
 def update_user_memory(key: str, value: str, overwrite_confirmed: bool = False):
     """Update or add a stable attribute about the user in long-term memory (user profile only).
 
-    仅用于存储用户的稳定属性和偏好（如姓名、生日、饮食偏好、兴趣爱好）。
-    若用户想记录具体内容、想法、事件或文章要点，请使用 add_note 工具。
+    当用户说"记住 XXX"（或类似表达），且内容是用户的习惯、偏好、属性等稳定信息时使用。
+    例如：饮食偏好、作息习惯、职业信息、个人资料等。
+
+    不适用于：具体的想法、感慨、会议要点、文章内容——这些请使用 add_note 工具。
 
     格式规范：
     - key: 使用简洁的分类标签，如"姓名"、"生日"、"职业"、"饮食偏好"、"兴趣爱好"
