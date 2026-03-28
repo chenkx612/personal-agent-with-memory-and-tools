@@ -88,8 +88,8 @@ def add_note(title: str, content: str, tags: str = ""):
 
     Args:
         title: 笔记标题，简洁概括内容。
-        content: 笔记正文，详细记录内容。
-        tags: 标签，逗号分隔（可选），如"论文,研究"。
+        content: 笔记正文，详细记录内容（使用第一人称，以你自己的口吻来写）。
+        tags: 标签，逗号分隔（可选）。
     """
     note_id = str(uuid.uuid4())[:8]
     created_at = datetime.now().strftime("%Y-%m-%d")
