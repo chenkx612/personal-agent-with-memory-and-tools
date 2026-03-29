@@ -64,24 +64,27 @@ def normalize_llm_content(content) -> str:
     return str(content)
 
 
-TIDY_PROMPT = """你是一个记忆整理助手。请分析以下用户记忆数据，进行整理优化。
+def _build_tidy_prompt(system_prompt: str, memory_json: str) -> str:
+    """构建记忆整理提示词，注入 agent 人设。"""
+    return f"""
+{system_prompt}
 
-当前记忆（JSON格式）：
+# 任务
+请以你的身份和口吻，整理以下用户记忆数据：
 ```json
 {memory_json}
 ```
 
-整理规则：
-1. 合并相似或重复的条目（如"喜欢的食物"和"饮食偏好"应合并）
-2. 精简冗长的描述，保留核心信息
-3. 使用统一的 key 命名风格（简洁的中文标签）
-4. 删除过时或矛盾的信息（保留更具体/更新的）
-5. 确保每个 key 语义明确，value 简洁有条理
+# 整理规则
+1. 合并相似或重复的条目
+2. 使用统一的 key 命名风格（简洁的中文标签）
+3. 精简冗长的描述，保留核心信息
+4. 整理时考虑你的身份和人设，保持记忆风格与你一致
 
-请直接输出整理后的 JSON，不要有其他解释。输出格式：
+请直接输出整理后的 JSON, 不要有其他解释。输出格式：
 ```json
 {{整理后的记忆}}
-```"""
+```""".strip()
 
 
 def edit_memory_json(memory: dict) -> dict | None:
@@ -146,7 +149,8 @@ def tidy_memory() -> bool:
 
     # 调用 LLM 整理
     llm = get_llm()
-    prompt = TIDY_PROMPT.format(memory_json=json.dumps(memory, ensure_ascii=False, indent=2))
+    system_prompt = config.get("system_prompt", "")
+    prompt = _build_tidy_prompt(system_prompt, json.dumps(memory, ensure_ascii=False, indent=2))
 
     console.print("\n[bold]LLM 整理中...[/bold]")
 
