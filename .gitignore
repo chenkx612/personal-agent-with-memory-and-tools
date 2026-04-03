@@ -4,5 +4,5 @@ temp/
 .pytest_cache/
 CLAUDE.md
 .claude
-config.yaml
+.config.yaml
 data/

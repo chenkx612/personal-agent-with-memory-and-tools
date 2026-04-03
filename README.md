@@ -35,7 +35,8 @@
 - 按日期倒序浏览，支持标签管理
 
 ### 3. 会话管理算法
-- **Short-term Memory**: 使用 `langgraph.checkpoint.memory.MemorySaver`。
+- **会话持久化**: 使用 `langgraph.checkpoint.sqlite.SqliteSaver`。
+  - 默认存储在 `data/checkpoints.db`，支持跨会话恢复对话上下文。
   - 维护当前会话的上下文窗口，确保多轮对话的连贯性。
   - 自动管理消息历史 (Message History) 的状态转换。
 
@@ -68,10 +69,11 @@
 ├── main.py                 # CLI 启动入口
 ├── requirements.txt        # Python 依赖
 ├── config.yaml.template    # 配置文件模板
-├── config.yaml            # 用户配置（git-ignored）
+├── .config.yaml            # 用户配置（隐藏 dotfile，git-ignored）
 ├── data/                  # 数据目录（git-ignored）
 │   ├── user_memory.json   # 用户画像记忆
 │   ├── notes.json         # 笔记数据
+│   ├── checkpoints.db      # SQLite 会话持久化
 │   ├── memory_faiss_index/  # 记忆 FAISS 索引
 │   └── notes_faiss_index/   # 笔记 FAISS 索引
 └── src/
@@ -104,8 +106,8 @@
 
 2. 配置文件：
    ```bash
-   cp config.yaml.template config.yaml
-   # 编辑 config.yaml，设置 api_key 和其他配置
+   cp config.yaml.template .config.yaml
+   # 编辑 .config.yaml，设置 api_key 和其他配置
    ```
 
 3. 运行命令行代理：
@@ -123,7 +125,7 @@
 
 ## 配置说明
 
-`config.yaml` 支持以下配置项：
+`.config.yaml` 支持以下配置项：
 
 ```yaml
 llm:
@@ -143,8 +145,10 @@ system_prompt: |              # 系统提示词
 ## 数据隐私
 
 本项目包含敏感数据文件，均已被 git 忽略：
+- `CLAUDE.md` - AI 助手指导文件
 - `data/user_memory.json` - 用户画像记忆
 - `data/notes.json` - 用户笔记
-- `config.yaml` - 个人配置
+- `data/checkpoints.db` - 会话持久化数据库
+- `.config.yaml` - 个人配置（隐藏 dotfile）
 
 如需备份到远程仓库，建议自行加密后提交。

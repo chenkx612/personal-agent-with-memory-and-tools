@@ -33,7 +33,7 @@ def load_config():
     Returns:
         dict: Configuration dictionary with all settings.
     """
-    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.yaml")
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".config.yaml")
     config = {}
 
     if os.path.exists(config_path):
