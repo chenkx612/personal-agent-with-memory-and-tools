@@ -6,3 +6,4 @@ CLAUDE.md
 .claude
 .config.yaml
 data/
+.DS_Store
