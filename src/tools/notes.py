@@ -118,7 +118,7 @@ def add_note(title: str, content: str, tags: str = ""):
 
 
 @tool
-def search_notes(query: str, k: int = 5):
+def search_notes(query: str, k: int = 3):
     """搜索笔记，返回相关笔记的摘要列表。
 
     当用户想查找之前记录的笔记时使用此工具。返回摘要列表（不含全文），
