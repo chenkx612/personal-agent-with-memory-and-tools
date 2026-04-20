@@ -109,13 +109,7 @@ def add_note(title: str, content: str, tags: str = ""):
                   "tags": tags, "created_at": created_at}
     )
     vectorstore = _get_notes_vectorstore()
-    if vectorstore is not None:
-        vectorstore.add_documents([doc])
-    else:
-        global _notes_vectorstore_cache
-        embeddings = _get_embeddings()
-        _notes_vectorstore_cache = FAISS.from_documents([doc], embeddings)
-        vectorstore = _notes_vectorstore_cache
+    vectorstore.add_documents([doc])
 
     os.makedirs(NOTES_FAISS_DIR, exist_ok=True)
     vectorstore.save_local(NOTES_FAISS_DIR)

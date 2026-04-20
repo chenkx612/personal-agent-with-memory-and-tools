@@ -18,7 +18,7 @@
 项目实现了两套独立的 RAG 系统，分别用于用户画像和笔记管理：
 
 #### 用户画像记忆
-- **Embedding 算法**: `sentence-transformers/all-MiniLM-L6-v2`
+- **Embedding 算法**: `BAAI/bge-small-zh-v1.5`
   - **类型**: Dense Embedding (稠密向量嵌入)。
   - **特点**: 轻量级（约 80MB），速度快，运行于本地 CPU。将用户的文本记忆转化为 384 维向量。
 - **向量检索 (Vector Search)**:

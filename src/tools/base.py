@@ -47,5 +47,5 @@ def _get_embeddings():
     global _embeddings_cache
     if _embeddings_cache is None:
         with suppress_stdout_stderr():
-            _embeddings_cache = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            _embeddings_cache = HuggingFaceEmbeddings(model_name="BAAI/bge-small-zh-v1.5")
     return _embeddings_cache
