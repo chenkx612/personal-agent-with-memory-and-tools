@@ -1,7 +1,7 @@
 """LLM initialization for the personal agent."""
 
 from langchain_openai import ChatOpenAI
-from config import load_config
+from core import load_config
 
 
 def get_llm():

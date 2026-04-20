@@ -1,5 +1,5 @@
 import os
-from config import load_config
+from core import load_config
 
 # 加载配置
 config = load_config()

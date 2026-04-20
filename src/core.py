@@ -2,12 +2,38 @@
 
 import os
 import sqlite3
+import yaml
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from graph import build_agent_graph
-from config import load_config
+
+
+def load_config():
+    """Load configuration from .config.yaml.
+
+    Returns:
+        dict: Configuration dictionary with all settings.
+
+    Raises:
+        FileNotFoundError: If .config.yaml is not found.
+    """
+    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".config.yaml")
+
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(
+            f"配置文件不存在: {config_path}\n"
+            "请复制 .config.yaml.template 为 .config.yaml 并填入你的配置"
+        )
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f) or {}
+
+    if config.get("hf_endpoint"):
+        os.environ["HF_ENDPOINT"] = config["hf_endpoint"]
+
+    return config
 from tools import (
     get_environment_context,
     search_memory,
