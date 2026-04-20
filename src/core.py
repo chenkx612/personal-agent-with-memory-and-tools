@@ -70,6 +70,24 @@ def get_agent_executor(checkpointer=None):
         conn = sqlite3.connect(db_path, check_same_thread=False)
         checkpointer = SqliteSaver(conn)
 
+        max_sessions = config.get("checkpoint_max_sessions", 10)
+        if max_sessions and max_sessions > 0:
+            cur = conn.cursor()
+            cur.execute("""
+                DELETE FROM checkpoints
+                WHERE thread_id NOT IN (
+                    SELECT thread_id FROM (
+                        SELECT thread_id, MAX(rowid) as latest
+                        FROM checkpoints
+                        GROUP BY thread_id
+                        ORDER BY latest DESC
+                        LIMIT ?
+                    )
+                )
+            """, (max_sessions,))
+            conn.commit()
+            conn.execute("VACUUM")
+
     agent = build_agent_graph(
         llm=llm,
         tools=tools,

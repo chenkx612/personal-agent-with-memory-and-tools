@@ -40,3 +40,8 @@ system_prompt: |
 # memory_file: "data/user_memory.json"
 # 向量存储缓存路径
 # vector_store_cache: "data/vectorstore_cache.faiss"
+
+# ==================== 对话持久化配置（可选）====================
+# 最大保留会话数（可选，默认 10）
+# 启动时会清理超出的旧会话，保留最近 N 个
+# checkpoint_max_sessions: 10

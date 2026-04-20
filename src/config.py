@@ -24,6 +24,7 @@ _DEFAULT_CONFIG = {
     },
     "stream_output": True,
     "system_prompt": _DEFAULT_SYSTEM_PROMPT,
+    "checkpoint_max_sessions": 10,
 }
 
 
