@@ -3,22 +3,17 @@
 
 # ==================== LLM 配置 ====================
 llm:
-  # API 密钥（必填）
   api_key: "sk-..."
-  # 模型名称
-  model: "deepseek-chat"
-  # API 基础 URL
+  model: "deepseek-v4-flash"
   base_url: "https://api.deepseek.com"
-  # 温度参数（可选，默认 0.7）
-  temperature: 0.7
+  # 思考模式开关 (enabled/disabled)
+  thinking_type: "enabled"
+  # 推理强度 (high/max)
+  reasoning_effort: "high"
 
 # ==================== 输出配置 ====================
 # 是否使用流式输出
 stream_output: true
-
-# ==================== HuggingFace 镜像（可选）====================
-# 用于在中国下载 embedding 模型
-# hf_endpoint: "https://hf-mirror.com"
 
 # ==================== 系统提示词 ====================
 system_prompt: |
@@ -35,13 +30,6 @@ system_prompt: |
   2. 书面交付要详尽：当用户要求撰写报告、编写代码、制定方案等正式工作成果时，请提供完整、详尽、高质量的内容。这是书面呈交的工作成果，必须严谨细致。
   3. 区分场景：请敏锐判断当前是"口头汇报"（简洁）还是"书面呈交"（详尽）。
 
-# ==================== 路径配置（可选）====================
-# 记忆文件路径
-# memory_file: "data/user_memory.json"
-# 向量存储缓存路径
-# vector_store_cache: "data/vectorstore_cache.faiss"
-
-# ==================== 对话持久化配置（可选）====================
-# 最大保留会话数（可选，默认 10）
-# 启动时会清理超出的旧会话，保留最近 N 个
+# ==================== 对话持久化配置====================
+# 最大保留会话数
 # checkpoint_max_sessions: 10

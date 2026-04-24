@@ -3,7 +3,6 @@
 import os
 import sqlite3
 import yaml
-from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 
@@ -30,9 +29,6 @@ def load_config():
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
 
-    if config.get("hf_endpoint"):
-        os.environ["HF_ENDPOINT"] = config["hf_endpoint"]
-
     return config
 from tools import (
     get_environment_context,
@@ -44,6 +40,7 @@ from tools import (
     search_notes,
     get_note,
 )
+from llm import get_llm
 
 
 def get_agent_executor(checkpointer=None):
@@ -62,22 +59,8 @@ def get_agent_executor(checkpointer=None):
         Tuple of (agent_executor, checkpointer)
     """
     config = load_config()
-    llm_config = config.get("llm", {})
 
-    api_key = llm_config.get("api_key")
-    model = llm_config.get("model")
-    base_url = llm_config.get("base_url")
-    temperature = llm_config.get("temperature", 0.7)
-
-    if not api_key:
-        print("Warning: api_key not found in config.yaml.")
-
-    llm = ChatOpenAI(
-        model=model,
-        api_key=api_key,
-        base_url=base_url,
-        temperature=temperature,
-    )
+    llm = get_llm()
 
     tools = [
         get_environment_context,

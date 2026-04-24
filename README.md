@@ -136,8 +136,6 @@ llm:
 
 stream_output: true           # 是否流式输出
 
-hf_endpoint: "https://hf-mirror.com"  # HuggingFace 镜像（可选，国内使用）
-
 system_prompt: |              # 系统提示词
   你是我（用户）的专属个人秘书...
 ```
