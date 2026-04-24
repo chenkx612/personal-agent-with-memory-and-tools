@@ -68,10 +68,13 @@ def get_llm():
     if not api_key:
         print("Warning: api_key not found in config.yaml.")
 
-    return ReasoningChatOpenAI(
-        model=model,
-        api_key=api_key,
-        base_url=base_url,
-        reasoning_effort=reasoning_effort,
-        extra_body={"thinking": {"type": thinking_type}}
-    )
+    kwargs = {
+        "model": model,
+        "api_key": api_key,
+        "base_url": base_url,
+        "extra_body": {"thinking": {"type": thinking_type}},
+    }
+    if thinking_type != "disabled":
+        kwargs["reasoning_effort"] = reasoning_effort
+
+    return ReasoningChatOpenAI(**kwargs)
