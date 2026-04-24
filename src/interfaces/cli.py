@@ -751,6 +751,16 @@ def format_tool_result(tool_name: str, result: str) -> Panel:
     return Panel(content, border_style="green", expand=False)
 
 
+def _reasoning_panel(text: str) -> Panel:
+    """渲染思考面板（灰色）。"""
+    return Panel(
+        Text(text or "思考中...", style="dim"),
+        title="[dim]💭 Thinking[/dim]",
+        border_style="dim",
+        expand=False,
+    )
+
+
 def stream_agent_response(agent, user_input: str, config: dict) -> str:
     """Stream agent response with tool calls and thinking visible.
 
@@ -765,71 +775,102 @@ def stream_agent_response(agent, user_input: str, config: dict) -> str:
     while True:
         # Track state for streaming
         current_content = ""
+        current_reasoning = ""
         final_content = ""
         pending_tool_calls = {}
         printed_tool_calls = set()
+        # 'reasoning' 或 'content'，用于在两种 Live 面板间切换
+        live_mode = "content"
 
         # Use Live for real-time markdown rendering
-        with Live(Markdown(""), console=console, refresh_per_second=10, vertical_overflow="visible") as live:
+        live = Live(Markdown(""), console=console, refresh_per_second=10, vertical_overflow="visible")
+        live.start()
+        try:
+            # 遍历 stream
+            for event in agent.stream(
+                current_input,
+                config,
+                stream_mode="messages"
+            ):
+                msg, metadata = event
+
+                # Handle AI message chunks (streaming text)
+                if isinstance(msg, AIMessageChunk):
+                    # 思考流：reasoning_content 透传自 ReasoningChatOpenAI
+                    reasoning_chunk = msg.additional_kwargs.get("reasoning_content") if msg.additional_kwargs else None
+                    if reasoning_chunk:
+                        if live_mode != "reasoning":
+                            live.update(_reasoning_panel(""))
+                            live_mode = "reasoning"
+                        current_reasoning += reasoning_chunk
+                        live.update(_reasoning_panel(current_reasoning))
+
+                    if msg.content:
+                        # 正式回答开始，关闭思考面板
+                        if live_mode == "reasoning":
+                            live.stop()
+                            current_reasoning = ""
+                            live = Live(Markdown(""), console=console, refresh_per_second=10, vertical_overflow="visible")
+                            live.start()
+                            live_mode = "content"
+                        current_content += normalize_llm_content(msg.content)
+                        live.update(Markdown(current_content))
+
+                    # Handle tool calls
+                    if msg.tool_call_chunks:
+                        for chunk in msg.tool_call_chunks:
+                            idx = chunk.get("index", 0)
+                            if idx not in pending_tool_calls:
+                                pending_tool_calls[idx] = {
+                                    "id": chunk.get("id"),
+                                    "name": chunk.get("name") or "",
+                                    "args": chunk.get("args") or ""
+                                }
+                            else:
+                                if chunk.get("id"):
+                                    pending_tool_calls[idx]["id"] = chunk["id"]
+                                if chunk.get("name"):
+                                    pending_tool_calls[idx]["name"] = chunk["name"]
+                                if chunk.get("args"):
+                                    pending_tool_calls[idx]["args"] += chunk["args"]
+
+                # Handle tool messages (results)
+                elif isinstance(msg, ToolMessage):
+                    live.stop()
+
+                    # Print any pending tool calls first
+                    for idx, tc in pending_tool_calls.items():
+                        if idx not in printed_tool_calls and tc.get("name"):
+                            try:
+                                args = json.loads(tc["args"]) if tc["args"] else {}
+                            except json.JSONDecodeError:
+                                args = {"raw": tc["args"]}
+                            console.print(format_tool_call({"name": tc["name"], "args": args}))
+                            printed_tool_calls.add(idx)
+
+                    # Print tool result
+                    tool_name = msg.name or "unknown"
+                    console.print(format_tool_result(tool_name, str(msg.content)))
+
+                    pending_tool_calls.clear()
+                    printed_tool_calls.clear()
+                    if current_content:
+                        final_content = current_content
+                    current_content = ""
+                    current_reasoning = ""
+                    console.print("[bold blue]Agent:[/bold blue]")
+
+                    # 重新开启 Live，准备下一段（默认 content 模式）
+                    live = Live(Markdown(""), console=console, refresh_per_second=10, vertical_overflow="visible")
+                    live.start()
+                    live_mode = "content"
+        except Exception as e:
+            console.print(f"[red]流式输出异常: {e}[/red]")
+            import traceback
+            traceback.print_exc()
+        finally:
             try:
-                # 遍历 stream
-                for event in agent.stream(
-                    current_input,
-                    config,
-                    stream_mode="messages"
-                ):
-                    msg, metadata = event
-
-                    # Handle AI message chunks (streaming text)
-                    if isinstance(msg, AIMessageChunk):
-                        if msg.content:
-                            current_content += normalize_llm_content(msg.content)
-                            live.update(Markdown(current_content))
-
-                        # Handle tool calls
-                        if msg.tool_call_chunks:
-                            for chunk in msg.tool_call_chunks:
-                                idx = chunk.get("index", 0)
-                                if idx not in pending_tool_calls:
-                                    pending_tool_calls[idx] = {
-                                        "id": chunk.get("id"),
-                                        "name": chunk.get("name") or "",
-                                        "args": chunk.get("args") or ""
-                                    }
-                                else:
-                                    if chunk.get("id"):
-                                        pending_tool_calls[idx]["id"] = chunk["id"]
-                                    if chunk.get("name"):
-                                        pending_tool_calls[idx]["name"] = chunk["name"]
-                                    if chunk.get("args"):
-                                        pending_tool_calls[idx]["args"] += chunk["args"]
-
-                    # Handle tool messages (results)
-                    elif isinstance(msg, ToolMessage):
-                        live.stop()
-
-                        # Print any pending tool calls first
-                        for idx, tc in pending_tool_calls.items():
-                            if idx not in printed_tool_calls and tc.get("name"):
-                                try:
-                                    args = json.loads(tc["args"]) if tc["args"] else {}
-                                except json.JSONDecodeError:
-                                    args = {"raw": tc["args"]}
-                                console.print(format_tool_call({"name": tc["name"], "args": args}))
-                                printed_tool_calls.add(idx)
-
-                        # Print tool result
-                        tool_name = msg.name or "unknown"
-                        console.print(format_tool_result(tool_name, str(msg.content)))
-
-                        pending_tool_calls.clear()
-                        printed_tool_calls.clear()
-                        if current_content:
-                            final_content = current_content
-                        current_content = ""
-                        console.print("[bold blue]Agent:[/bold blue]")
-
-                        live.start()
+                live.stop()
             except Exception:
                 pass
 
