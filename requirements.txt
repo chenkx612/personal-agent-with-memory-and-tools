@@ -8,5 +8,5 @@ faiss-cpu
 sentence-transformers
 langchain-community
 langchain-huggingface
-duckduckgo-search
+ddgs
 pyyaml
