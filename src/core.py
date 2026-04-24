@@ -78,6 +78,7 @@ def get_agent_executor(checkpointer=None):
         os.makedirs("data", exist_ok=True)
         conn = sqlite3.connect(db_path, check_same_thread=False)
         checkpointer = SqliteSaver(conn)
+        checkpointer.setup()
 
         max_sessions = config.get("checkpoint_max_sessions", 10)
         if max_sessions and max_sessions > 0:
