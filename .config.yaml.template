@@ -10,6 +10,8 @@ llm:
   thinking_type: "enabled"
   # 推理强度 (high/max)
   reasoning_effort: "high"
+  # 是否展示思维链
+  show_reasoning_chain: true
 
 # ==================== 输出配置 ====================
 # 是否使用流式输出

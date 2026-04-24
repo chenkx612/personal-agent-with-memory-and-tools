@@ -6,6 +6,7 @@ config = load_config()
 
 # 读取输出模式配置，默认为流式输出
 STREAM_OUTPUT = config.get("stream_output", True)
+SHOW_REASONING_CHAIN = config.get("llm", {}).get("show_reasoning_chain", True)
 
 import uuid
 import json
@@ -802,8 +803,11 @@ def stream_agent_response(agent, user_input: str, config: dict) -> str:
                         if live_mode != "reasoning":
                             live.update(_reasoning_panel(""))
                             live_mode = "reasoning"
-                        current_reasoning += reasoning_chunk
-                        live.update(_reasoning_panel(current_reasoning))
+                        if SHOW_REASONING_CHAIN:
+                            current_reasoning += reasoning_chunk
+                            live.update(_reasoning_panel(current_reasoning))
+                        else:
+                            live.update(_reasoning_panel("思考中..."))
 
                     if msg.content:
                         # 正式回答开始，关闭思考面板
