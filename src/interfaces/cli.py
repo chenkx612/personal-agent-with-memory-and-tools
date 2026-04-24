@@ -940,7 +940,6 @@ def blocking_agent_response(agent, user_input: str, config: dict) -> str:
 
 
 def main():
-    console.print("[bold]Initializing Personal Agent...[/bold]")
     try:
         agent, checkpointer = get_agent_executor()
     except Exception as e:

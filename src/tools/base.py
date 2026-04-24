@@ -5,7 +5,6 @@ import sys
 import io
 import logging
 import contextlib
-from langchain_huggingface import HuggingFaceEmbeddings
 
 # Suppress HuggingFace transformers warnings
 logging.getLogger("transformers").setLevel(logging.ERROR)
@@ -46,6 +45,7 @@ def _get_embeddings():
     """Get cached embeddings model."""
     global _embeddings_cache
     if _embeddings_cache is None:
+        from langchain_huggingface import HuggingFaceEmbeddings
         with suppress_stdout_stderr():
             _embeddings_cache = HuggingFaceEmbeddings(model_name="BAAI/bge-small-zh-v1.5")
     return _embeddings_cache
